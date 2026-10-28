@@ -1,0 +1,9 @@
+yfinance
+pandas
+numpy
+scipy
+fastapi
+uvicorn[standard]
+feedparser
+requests
+schwab-py

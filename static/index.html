@@ -1,0 +1,1308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Options Radar</title>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --surface-2: #f3f2ee;
+  --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+  --accent: #2a78d6; --accent-soft: #cde2fb;
+  --pos: #2a78d6; --neg: #e34948; --mid: #f0efec;
+  --good: #0ca30c; --good-text: #006300; --critical: #d03b3b; --warning: #fab219;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+  --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321;
+    --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-soft: #184f95;
+    --pos: #3987e5; --neg: #e66767; --mid: #383835;
+    --good-text: #0ca30c;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321;
+  --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --accent: #3987e5; --accent-soft: #184f95;
+  --pos: #3987e5; --neg: #e66767; --mid: #383835;
+  --good-text: #0ca30c;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  --shadow: none;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+button, input, select { font: inherit; color: inherit; }
+.wrap { max-width: 1320px; margin: 0 auto; padding: 0 20px 60px; }
+header { position: sticky; top: 0; z-index: 20; background: var(--page);
+  border-bottom: 1px solid var(--border); }
+.bar { max-width: 1320px; margin: 0 auto; padding: 12px 20px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
+.brand svg { color: var(--accent); }
+nav { display: flex; gap: 4px; }
+nav button { background: none; border: 0; padding: 7px 12px; border-radius: 8px; color: var(--ink-2); cursor: pointer; }
+nav button.on { background: var(--surface-2); color: var(--ink); font-weight: 600; }
+.spacer { flex: 1; }
+.meta { color: var(--muted); font-size: 12.5px; }
+.btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn.ghost { background: var(--surface-2); color: var(--ink); font-weight: 500; }
+.progress { height: 3px; background: transparent; }
+.progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.note { margin: 16px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--surface-2); color: var(--ink-2); font-size: 12.5px; }
+h2 { font-size: 15px; margin: 28px 0 12px; display: flex; align-items: baseline; gap: 10px; }
+h2 small { color: var(--muted); font-weight: 400; font-size: 12.5px; }
+
+/* filters */
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 12px; margin-top: 16px; }
+.filters label { display: flex; flex-direction: column; gap: 2px; font-size: 11.5px; color: var(--muted); }
+.filters input, .filters select { background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; padding: 6px 8px; min-width: 0; }
+.filters input[type=number] { width: 84px; }
+.filters input[type=search] { width: 150px; }
+
+/* top 5 */
+.top { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+@media (max-width: 1200px) { .top { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 760px) { .top { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow);
+  cursor: pointer; display: flex; flex-direction: column; gap: 10px; transition: border-color .15s, transform .15s; }
+.card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.card .row1 { display: flex; justify-content: space-between; align-items: center; }
+.rank { width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.tk { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.px { color: var(--ink-2); font-size: 12.5px; }
+.strat { font-weight: 600; }
+.legs { font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.kv { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.kv div { background: var(--surface-2); border-radius: 8px; padding: 6px 8px; }
+.kv b { display: block; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.kv span { font-size: 11px; color: var(--muted); }
+.reason { font-size: 12.5px; color: var(--ink-2); }
+.pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; font-size: 11.5px; font-weight: 600;
+  border: 1px solid var(--border); white-space: nowrap; }
+.pill.bull { color: var(--good-text); }
+.pill.bear { color: var(--critical); }
+.pill.neu { color: var(--ink-2); }
+.pill.flag { color: var(--ink); background: var(--surface-2); }
+.meter { height: 6px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.scoreline { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.scoreline .meter { flex: 1; }
+.scoreline b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.empty { padding: 40px; text-align: center; color: var(--muted); background: var(--surface); border: 1px dashed var(--border); border-radius: 14px; }
+
+/* table */
+.tablewrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th { font-size: 11.5px; color: var(--muted); font-weight: 600; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--surface); }
+th.num, td.num { text-align: right; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--surface-2); }
+tbody tr.noidea { cursor: default; color: var(--muted); }
+.up { color: var(--good-text); } .down { color: var(--critical); }
+
+/* drawer */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 40; display: none; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(1000px, 100vw); background: var(--page); z-index: 50;
+  transform: translateX(100%); transition: transform .22s ease; overflow-y: auto; border-left: 1px solid var(--border); }
+.drawer.open { transform: none; } .overlay.open { display: block; }
+.dhead { position: sticky; top: 0; background: var(--page); padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; gap: 12px; align-items: center; z-index: 2; }
+.dbody { padding: 16px 20px 40px; display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
+@media (max-width: 860px) { .dbody { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; min-width: 0; }
+.panel h3 { margin: 0 0 10px; font-size: 13px; color: var(--ink-2); font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+.panel h3 small { color: var(--muted); font-weight: 400; }
+.span2 { grid-column: 1 / -1; }
+#chart { height: 340px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--ink-2); margin-top: 8px; }
+.legend i { display: inline-block; width: 14px; height: 0; border-top: 2px dashed; vertical-align: middle; margin-right: 5px; }
+.plan dt { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+.plan dd { margin: 2px 0 0; }
+ul.why { margin: 0; padding-left: 18px; } ul.why li { margin: 4px 0; }
+.warn { margin-top: 10px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); font-size: 12.5px; }
+.warn::before { content: "⚠ "; color: var(--warning); }
+.sig { display: grid; grid-template-columns: 120px 1fr 44px; gap: 8px; align-items: center; margin: 7px 0; font-size: 12.5px; }
+.sig .track { position: relative; height: 10px; background: var(--surface-2); border-radius: 5px; }
+.sig .track::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--axis); }
+.sig .fill { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
+.sig .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.news a { color: var(--ink); text-decoration: none; } .news a:hover { text-decoration: underline; }
+.news li { margin: 6px 0; } .news ul { padding-left: 0; list-style: none; margin: 0; }
+.news .src { color: var(--muted); font-size: 11.5px; }
+svg text { fill: var(--muted); font-size: 10.5px; }
+.tip { position: fixed; pointer-events: none; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px;
+  font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.15); z-index: 99; display: none; font-variant-numeric: tabular-nums; }
+.legstable td, .legstable th { padding: 5px 6px; font-size: 12.5px; }
+.prose { max-width: 820px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px 22px 18px; }
+.prose h3 { margin-top: 18px; font-size: 14px; }
+.universe textarea { width: 100%; min-height: 260px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px; font: 13px/1.5 ui-monospace, Menlo, monospace; color: var(--ink); }
+.stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; min-width: 150px; }
+.stat b { font-size: 22px; display: block; } .stat span { color: var(--muted); font-size: 12px; }
+.hidden { display: none !important; }
+
+/* charts tab */
+.cbar { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-top: 16px; }
+.cbar input { background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; width: 130px; text-transform: uppercase; }
+.cgrid { display: grid; grid-template-columns: 1fr 320px; gap: 14px; margin-top: 14px; }
+@media (max-width: 960px) { .cgrid { grid-template-columns: 1fr; } }
+#bigchart { height: 520px; }
+#rsichart { height: 130px; margin-top: 4px; border-top: 1px solid var(--grid); }
+#rsichart:empty { display: none; }
+@media (max-width: 760px) { #bigchart { height: 380px; } }
+.lv { width: 100%; } .lv td, .lv th { padding: 5px 6px; font-size: 12.5px; }
+.lv .dots { letter-spacing: 1px; color: var(--accent); }
+.lv tr.res td:first-child { color: var(--critical); font-weight: 700; } .lv tr.sup td:first-child { color: var(--good-text); font-weight: 700; }
+.lv tr.now td { color: var(--muted); font-style: italic; }
+.tfs { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+.tfs button { border: 0; background: none; padding: 7px 11px; cursor: pointer; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.tfs button.on { background: var(--accent); color: #fff; font-weight: 600; }
+.layers { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 0; }
+.layers label { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 99px; font-size: 12px; cursor: pointer; user-select: none; background: var(--surface-2); }
+.layers input { margin: 0; accent-color: var(--accent); }
+.layers input[type=color] { width: 18px; height: 18px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: none; cursor: pointer; overflow: hidden; }
+.layers input[type=color]::-webkit-color-swatch-wrapper { padding: 0; } .layers input[type=color]::-webkit-color-swatch { border: 0; border-radius: 50%; }
+.layers input[type=color]::-moz-color-swatch { border: 0; border-radius: 50%; }
+/* chat */
+.chat-fab { position: fixed; right: 18px; bottom: 18px; z-index: 60; border-radius: 99px; padding: 11px 16px; box-shadow: 0 4px 16px rgba(0,0,0,.18); }
+.chat { position: fixed; right: 18px; bottom: 72px; width: min(400px, calc(100vw - 32px)); height: min(560px, calc(100vh - 120px)); z-index: 60;
+  background: var(--page); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.2); display: flex; flex-direction: column; }
+.chat-head { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.chat-log { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.msg { max-width: 88%; padding: 8px 11px; border-radius: 12px; white-space: pre-wrap; font-size: 13px; line-height: 1.5; }
+.msg.user { align-self: flex-end; background: var(--accent); color: #fff; }
+.msg.assistant { align-self: flex-start; background: var(--surface-2); }
+.msg.err { align-self: flex-start; color: var(--critical); background: var(--surface-2); }
+.chat-form { display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--border); }
+.chat-form textarea { flex: 1; resize: none; height: 40px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px; font: inherit; color: var(--ink); }
+@media (max-width: 760px) { .chat { right: 16px; bottom: 70px; } }
+.ai { white-space: pre-wrap; font-size: 13px; line-height: 1.55; }
+/* paper trading */
+.btn.sm { padding: 5px 10px; font-size: 12px; }
+.card .ptrade { align-self: flex-start; }
+.pbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; padding: 12px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 12px; }
+.pbar label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.pbar input[type=number] { width: 64px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; padding: 5px 7px; }
+.pbar input[type=checkbox] { accent-color: var(--accent); }
+.confirm { display: inline-flex; gap: 6px; align-items: center; padding: 4px 8px; border-radius: 8px; background: var(--surface-2); font-size: 12.5px; }
+.btn.danger { background: var(--critical); }
+#p-eq { min-height: 60px; }
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 70; max-width: min(520px, calc(100vw - 32px));
+  background: var(--ink); color: var(--page); padding: 9px 14px; border-radius: 10px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
+.toast.err { background: var(--critical); color: #fff; }
+td .legs { white-space: normal; min-width: 180px; }
+.stale { color: var(--warning); cursor: help; }
+/* phones */
+@media (max-width: 760px) {
+  .wrap { padding: 0 12px 90px; }
+  .bar { padding: 8px 12px; gap: 8px; }
+  .brand { font-size: 15px; }
+  nav { order: 10; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: 0 -4px; }
+  nav::-webkit-scrollbar { display: none; }
+  nav button { white-space: nowrap; flex: none; padding: 8px 11px; }
+  #meta { display: none; }
+  .btn { padding: 9px 12px; }
+  /* 16px inputs stop iPhone zooming the page when you tap a box */
+  input, select, textarea, .chat-form textarea { font-size: 16px !important; }
+  .filters { gap: 6px; padding: 10px; }
+  .filters label { flex: 1 1 calc(50% - 6px); }
+  .filters input, .filters select, .filters input[type=number], .filters input[type=search] { width: 100%; }
+  h2 { flex-wrap: wrap; gap: 4px 10px; }
+  th, td { padding: 7px 8px; }
+  .kv { grid-template-columns: 1fr 1fr 1fr; }
+  .stats { gap: 8px; } .stat { flex: 1 1 calc(50% - 8px); min-width: 0; padding: 10px 12px; } .stat b { font-size: 18px; }
+  .panel { padding: 12px; }
+  .prose { padding: 4px 14px 14px; }
+  .dhead { padding: 10px 12px; flex-wrap: wrap; } .dbody { padding: 12px 12px 40px; }
+  .cbar { gap: 6px; } .cbar input { width: 110px; }
+  .cbar .btn { flex: 1 1 auto; }
+  .tfs { width: 100%; } .tfs button { flex: 1; padding: 9px 0; }
+  .layers { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+  .layers label { flex: none; white-space: nowrap; }
+  #rsichart { height: 100px; }
+  .chat { left: 8px; right: 8px; width: auto; bottom: 64px; height: calc(100vh - 140px); }
+  .chat-fab { right: 12px; bottom: 12px; }
+  .note { font-size: 12px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12 19 5"/></svg>
+      Options Radar
+    </div>
+    <nav>
+      <button data-tab="radar" class="on">Radar</button>
+      <button data-tab="charts">Charts</button>
+      <button data-tab="paper">Paper trading</button>
+      <button data-tab="track">Track record</button>
+      <button data-tab="universe">Watchlist</button>
+      <button data-tab="how">How it works</button>
+    </nav>
+    <div class="spacer"></div>
+    <span class="pill" id="src" title="Market data source">…</span>
+    <span class="meta" id="meta">—</span>
+    <button class="btn ghost" id="theme" title="Toggle theme">◐</button>
+    <button class="btn" id="scan">Scan now</button>
+  </div>
+  <div class="progress"><i id="prog"></i></div>
+</header>
+
+<div class="wrap">
+  <!-- RADAR -->
+  <section id="tab-radar">
+    <div class="note">Ideas ranked from dealer gamma, unusual options activity, implied-vs-realized volatility, earnings pricing, trend and news/rumor buzz.
+      Free Yahoo data is ~15 min delayed and open interest updates once a day. This is a research tool, not financial advice — paper trade first.</div>
+
+    <div class="filters" id="filters">
+      <label>Search<input type="search" id="f-q" placeholder="Ticker…"></label>
+      <label>Sector<select id="f-sector"><option value="">All</option></select></label>
+      <label>Bias<select id="f-bias"><option value="">Any</option><option value="bullish">Bullish</option><option value="bearish">Bearish</option><option value="neutral">Neutral / range</option><option value="move">Big move</option></select></label>
+      <label>Trade type<select id="f-strat"><option value="">Any</option><option value="long_option">Buy call / put</option><option value="debit_spread">Debit spread</option><option value="credit_spread">Credit spread</option><option value="iron_condor">Iron condor</option><option value="long_straddle">Straddle</option></select></label>
+      <label>Price min<input type="number" id="f-pmin" min="0" placeholder="0"></label>
+      <label>Price max<input type="number" id="f-pmax" min="0" placeholder="∞"></label>
+      <label>Max risk / contract<input type="number" id="f-risk" min="0" placeholder="$"></label>
+      <label>Options are<select id="f-iv"><option value="">Any</option><option value="rich">Expensive (sell)</option><option value="cheap">Cheap (buy)</option></select></label>
+      <label>Gamma<select id="f-gamma"><option value="">Any</option><option value="positive">Positive (calm)</option><option value="negative">Negative (volatile)</option></select></label>
+      <label>Earnings<select id="f-earn"><option value="">Any</option><option value="avoid">Avoid before expiry</option><option value="only">Earnings plays only</option></select></label>
+      <label>Min score<input type="number" id="f-score" min="0" max="100" placeholder="0"></label>
+      <label>&nbsp;<button class="btn ghost" id="f-reset">Reset</button></label>
+    </div>
+
+    <h2>Top 5 right now <small id="top-sub"></small></h2>
+    <div class="top" id="top"></div>
+
+    <h2>All scanned <small id="all-sub"></small></h2>
+    <div class="tablewrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+  </section>
+
+  <!-- CHARTS -->
+  <section id="tab-charts" class="hidden">
+    <div class="cbar">
+      <label class="meta" style="display:flex;flex-direction:column;gap:2px">Ticker<input id="c-t" list="c-list" value="SPY" autocomplete="off"></label>
+      <datalist id="c-list"></datalist>
+      <button class="btn" id="c-load">Show chart</button>
+      <div class="tfs" id="c-tfs" role="group" aria-label="Timeframe"><button data-tf="1m">1m</button><button data-tf="5m">5m</button><button data-tf="15m">15m</button><button data-tf="30m">30m</button><button data-tf="1h">1h</button><button data-tf="1d" class="on">1D</button></div>
+      <button class="btn ghost" id="c-kronos" title="AI forecast of the next bars on this timeframe">Kronos forecast</button>
+      <button class="btn ghost" id="c-ai">Ask Claude to explain</button>
+      <span class="meta" id="c-msg"></span>
+    </div>
+    <div class="layers" id="c-layers">
+      <label><input type="checkbox" data-layer="volume">Volume <input type="color" data-color="volUp" title="Volume up color"><input type="color" data-color="volDn" title="Volume down color"></label>
+      <label><input type="checkbox" data-layer="sr">Support / resistance <input type="color" data-color="sup" title="Support color"><input type="color" data-color="res" title="Resistance color"></label>
+      <label><input type="checkbox" data-layer="zones">Supply / demand <input type="color" data-color="demand" title="Demand zone color"><input type="color" data-color="supply" title="Supply zone color"></label>
+      <label><input type="checkbox" data-layer="walls">Options walls <input type="color" data-color="call" title="Call wall color"><input type="color" data-color="put" title="Put wall color"></label>
+      <label><input type="checkbox" data-layer="rip1">Ripster 5/12 <input type="color" data-color="rip1Up" title="5/12 bullish color"><input type="color" data-color="rip1Dn" title="5/12 bearish color"></label>
+      <label><input type="checkbox" data-layer="rip2">Ripster 34/50 <input type="color" data-color="rip2Up" title="34/50 bullish color"><input type="color" data-color="rip2Dn" title="34/50 bearish color"></label>
+      <label><input type="checkbox" data-layer="rip3">Ripster 8/9 <input type="color" data-color="rip3Up" title="8/9 bullish color"><input type="color" data-color="rip3Dn" title="8/9 bearish color"></label>
+      <label><input type="checkbox" data-layer="rip4">Ripster 72/89 <input type="color" data-color="rip4Up" title="72/89 bullish color"><input type="color" data-color="rip4Dn" title="72/89 bearish color"></label>
+      <label><input type="checkbox" data-layer="ema">EMA 9 <input type="color" data-color="ema9" title="EMA 9 color"> 21 <input type="color" data-color="ema21" title="EMA 21 color"> 50 <input type="color" data-color="ema50" title="EMA 50 color"> 200 <input type="color" data-color="ema200" title="EMA 200 color"></label>
+      <label><input type="checkbox" data-layer="signals">Trend-change arrows <input type="color" data-color="sigUp" title="Trend turning up color"><input type="color" data-color="sigDn" title="Trend turning down color"></label>
+      <label><input type="checkbox" data-layer="rsi">RSI 14 <input type="color" data-color="rsi" title="RSI line color"></label>
+      <label><input type="checkbox" data-layer="kronos">Kronos <input type="color" data-color="kronos" title="Kronos forecast color"></label>
+      <button class="btn ghost" id="c-colors-reset" style="padding:4px 10px;font-size:12px">Reset colors</button>
+    </div>
+    <div class="cgrid">
+      <div class="panel" style="min-width:0"><h3 id="c-title">Support &amp; resistance <small>daily · ~1.5 years</small></h3><div id="bigchart"></div><div id="rsichart"></div>
+        <div class="legend" id="c-legend"></div></div>
+      <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+        <div class="panel"><h3>Levels <small>strength ●●●●● = most tested</small></h3><table class="lv"><tbody id="c-levels"></tbody></table></div>
+        <div class="panel"><h3>Claude's read <small id="c-ai-sub"></small></h3><div class="ai" id="c-ai-text"><span class="meta">Click “Ask Claude to explain” for a plain-English read of these levels.</span></div></div>
+      </div>
+    </div>
+    <div class="note"><b>Supply / demand zones</b> = shaded boxes where price sat quietly and then shot away (demand = rally, supply = drop). "Fresh" zones haven't been revisited and tend to react strongest; a zone disappears once price closes through it. <b>Ripster EMA clouds</b>: 5/12 = short-term trend, 34/50 = bigger trend; price above a green cloud is bullish, below a red one bearish. <b>Kronos</b>: click "Kronos forecast" — the solid blue line is its middle guess for the next bars (20 days on 1D, about a day on 15m), dotted lines the likely range (8 AI runs). Use it as one more opinion next to the levels, not on its own.<br><br>Support (green, S1 nearest) = prices where buyers stepped in before; resistance (red, R1 nearest) = where sellers did. Found from swing highs/lows over the last 250 bars of the chosen timeframe, merged when close together, ranked by how often price touched them. Blue/orange dashed = options call/put walls from the last scan. Kronos is an open-source AI model trained on candlestick charts — its band is a guess of the range, not a promise.<br><br><b>Futures</b> (/ES, /NQ, /CL, /GC): Yahoo continuous front-month contracts (~10 min delayed), shown across the ~23h session (Sun 6 pm – Fri 5 pm New York, 5–6 pm daily break); no options walls. <b>● Streaming</b> = tick-by-tick prices from Schwab update the current bar; otherwise the chart refreshes every 10–60 s.</div>
+  </section>
+
+  <!-- PAPER -->
+  <section id="tab-paper" class="hidden">
+    <div class="note"><b>Fake money only</b> — nothing here is ever sent to a broker. Click “Paper trade” on any idea to see how it would do.
+      Fills are realistic: you <b>buy at the ask</b> and <b>sell at the bid</b> (the mid if one side is missing), using prices from <span id="p-src">Schwab or Yahoo</span>.
+      Open trades are re-priced at the mid every few minutes. When the market is closed some quotes show 0 — then the last price is kept and the trade is marked <span class="stale">⏸ stale</span> (no automatic exits on stale prices). Not financial advice.</div>
+    <h2>Paper account <small id="p-sub"></small></h2>
+    <div class="stats" id="p-stats"></div>
+    <div class="panel"><h3>Account value over time <small>one point per day</small></h3><div id="p-eq"></div></div>
+    <div class="pbar">
+      <label><input type="checkbox" id="p-auto"> Auto-trade the top <input type="number" id="p-n" min="1" max="5" value="3"> ideas each scan day</label>
+      <label><input type="checkbox" id="p-autoclose"> Auto-close on the plan's exit rules</label>
+      <span class="spacer"></span>
+      <span id="p-reset-box"></span>
+      <button class="btn ghost" id="p-refresh">Refresh prices</button>
+    </div>
+    <h2>Open trades <small id="p-open-sub"></small></h2>
+    <div class="tablewrap"><table id="p-open"><thead><tr><th>Ticker</th><th>Idea</th><th>Legs</th><th class="num">Entry</th><th class="num">Now</th><th class="num">P&amp;L $</th><th class="num">P&amp;L %</th><th class="num">Take profit / stop</th><th class="num">Days held</th><th></th></tr></thead><tbody></tbody></table></div>
+    <h2>Closed trades <small id="p-closed-sub"></small></h2>
+    <div class="tablewrap"><table id="p-closed"><thead><tr><th>Closed</th><th>Ticker</th><th>Idea</th><th class="num">Entry</th><th class="num">Exit</th><th class="num">P&amp;L $</th><th class="num">P&amp;L %</th><th class="num">Days held</th><th>Why closed</th></tr></thead><tbody></tbody></table></div>
+    <div class="prose" style="margin-top:16px">
+      <h3>How the paper account works</h3>
+      <p><b>Entry / Now</b> = what you paid (debit) or received (credit) for the whole trade, and what it's worth now. For credit trades it's the credit you collected and what it would cost to buy back now.<br>
+      <b>Cash</b> goes down when you pay for a trade and up when you collect a credit. For credit trades the max loss is set aside, so <b>Available</b> = cash minus that collateral. A trade is refused if its max loss is more than what's available.<br>
+      <b>Exit rules</b> (from each idea's trade plan, used when auto-close is on): credit spreads and iron condors close at <b>+50% of the credit</b> or when buying back costs <b>double the credit</b>; buy call/put and straddles at <b>+100%</b> or <b>−50%</b>; debit spreads at <b>+60% of max profit</b> or <b>−50%</b>. Everything is closed on expiry day, and anything past expiry is settled at its value at the last stock price.<br>
+      <b>Auto-trade</b>: after a scan, opens 1 contract of each of the top N ideas once per day, skipping tickers you already hold. Win rate = closed trades with a profit.</p>
+    </div>
+  </section>
+
+  <!-- TRACK -->
+  <section id="tab-track" class="hidden">
+    <h2>Track record <small>Every day's top 5 is logged automatically and checked against the latest price</small></h2>
+    <div class="stats" id="stats"></div>
+    <div class="tablewrap"><table id="hist"><thead><tr><th>Date</th><th>Ticker</th><th>Idea</th><th>Bias</th><th class="num">Score</th><th class="num">Price then</th><th class="num">Now</th><th class="num">Move</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+    <p class="meta">"On track" means the stock is moving the way the idea needs (above/below entry for directional trades, inside the breakevens for condors, outside for straddles). It does not include option pricing changes — judge after a few weeks of picks, not a few days.</p>
+  </section>
+
+  <!-- UNIVERSE -->
+  <section id="tab-universe" class="hidden universe">
+    <h2>Data source <small>Schwab (thinkorswim) gives live quotes and broker greeks; Yahoo is the free, delayed fallback</small></h2>
+    <div class="panel" id="schwab-panel" style="margin-bottom:8px"></div>
+    <h2>Watchlist <small>One per line: TICKER, Sector. The next scan uses this list.</small></h2>
+    <textarea id="uni"></textarea>
+    <p><button class="btn" id="uni-save">Save &amp; scan</button> <button class="btn ghost" id="uni-reset">Reset to default</button> <span class="meta" id="uni-msg"></span></p>
+  </section>
+
+  <!-- HOW -->
+  <section id="tab-how" class="hidden">
+    <h2>How the ranking works</h2>
+    <div class="prose">
+      <h3>1. Are options cheap or expensive? (55% of the score)</h3>
+      <p><b>Volatility premium (30%)</b> — compares the 30-day implied volatility with how much the stock has actually been moving. Options usually price in more movement than happens (the best-documented edge in options), so "expensive" favours selling premium and "cheap" favours buying.<br>
+      <b>Earnings pricing (25%)</b> — strips normal day-to-day movement out of the straddle to get the market's expected earnings move, then compares it with the stock's last 8 earnings reactions.</p>
+      <h3>2. Which way? (37%)</h3>
+      <p><b>Trend (10%)</b> — price vs 20/50/200-day averages and 1-month momentum.<br>
+      <b>Options pricing tilt (10%)</b> — call-minus-put implied vol at the same strikes, and how steep put skew is. Documented in research, but about half as strong as it used to be.<br>
+      <b>News &amp; rumor (10%)</b> — headlines from the last 7 days, scored for tone and rumor language (takeover, "in talks", "people familiar"…). Only counts fully when unusual options activity points the same way — rumors alone pay off only about a third of the time.<br>
+      <b>Unusual activity (7%)</b> — contracts trading far above their open interest, especially short-dated out-of-the-money calls (the classic pre-takeover footprint). Low weight because free data can't tell whether trades were buys or sells.</p>
+      <h3>3. Dealer gamma (filter, not a score)</h3>
+      <p>Estimates how market makers hedge (assuming they are long calls and short puts). <b>Positive gamma</b>: hedging dampens moves, so ranges hold, which is good for selling premium. <b>Negative gamma</b>: hedging amplifies moves, so selling premium scores are halved. The <b>call wall</b>, <b>put wall</b> and <b>zero-gamma</b> lines are shown on the chart and used to place strikes, but they are not treated as price targets — research doesn't support that.</p>
+      <h3>4. Picking the trade</h3>
+      <p>Direction strong + options expensive → credit spread. Direction strong + options cheap → buy a call or put. Direction strong + neutral pricing → debit spread. No direction + expensive → iron condor. No direction + cheap → straddle. Strikes use ~0.25–0.40 delta, about 30 days out (or the first expiry after earnings for earnings plays), priced at the mid. Wide bid/ask and thin open interest cut the score.</p>
+      <h3>Limits</h3>
+      <p>Free data: delayed quotes, daily open interest (same-day 0DTE positioning is invisible), no trade side, no options history (the tool saves a daily snapshot so you'll build your own). Set <code>ANTHROPIC_API_KEY</code> before starting to have Claude read the headlines instead of keyword matching. Trading on public rumors is legal; trading on inside (non-public) information is not.</p>
+    </div>
+  </section>
+</div>
+
+<div class="overlay" id="ov"></div>
+<aside class="drawer" id="drawer"><div class="dhead" id="dhead"></div><div class="dbody" id="dbody"></div></aside>
+<div class="tip" id="tip"></div>
+<button class="btn chat-fab" id="chat-open">💬 Ask Claude</button>
+<div class="chat hidden" id="chat">
+  <div class="chat-head">Ask Claude <small class="meta" id="chat-ctx"></small><span class="spacer"></span><button class="btn ghost" id="chat-clear" title="Start over">New</button><button class="btn ghost" id="chat-close">✕</button></div>
+  <div class="chat-log" id="chat-log"><div class="msg assistant">Hi! Ask me anything — e.g. “Predict TSLA for next week” (I'll run the Kronos AI forecast first), “Where is support on the chart I have open?”, or “What is a credit spread?”. I can see the top 5 ideas and the chart you have open.</div></div>
+  <form class="chat-form" id="chat-form"><textarea id="chat-in" placeholder="Type a question…"></textarea><button class="btn" id="chat-send">Send</button></form>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const fmt$ = (v, d = 2) => v == null ? "—" : "$" + Number(v).toLocaleString(undefined, {minimumFractionDigits: d, maximumFractionDigits: d});
+const fmtP = (v, d = 1) => v == null ? "—" : (v * 100).toFixed(d) + "%";
+const sgnP = (v, d = 1) => v == null ? "—" : (v >= 0 ? "+" : "") + (v * 100).toFixed(d) + "%";
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let DATA = {rows: []}, sortKey = "score", sortDir = -1, chart = null;
+
+// ---------- theme
+try { const t = localStorage.getItem("radar-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+$("#theme").onclick = () => {
+  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.dataset.theme = dark ? "light" : "dark";
+  try { localStorage.setItem("radar-theme", document.documentElement.dataset.theme); } catch (e) {}
+  render(); if ($("#drawer").classList.contains("open")) openDetail(current);
+  if (cData) drawBigChart();
+};
+
+// ---------- tabs
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll("section[id^=tab-]").forEach(s => s.classList.toggle("hidden", s.id !== "tab-" + b.dataset.tab));
+  if (b.dataset.tab === "track") loadHistory();
+  if (b.dataset.tab === "charts") { fillTickerList(); if (!cChart) loadChart(); }
+  if (b.dataset.tab === "universe") loadUniverse();
+  if (b.dataset.tab === "paper") loadPaper();
+});
+
+// ---------- data
+async function load() {
+  DATA = await (await fetch("/api/results")).json();
+  DATA.skipped = DATA.skipped || [];
+  const sectors = [...new Set([...DATA.rows, ...DATA.skipped].map(r => r.sector))].sort();
+  const sel = $("#f-sector"), cur = sel.value;
+  sel.innerHTML = '<option value="">All</option>' + sectors.map(s => `<option>${s}</option>`).join("");
+  sel.value = cur;
+  $("#meta").textContent = DATA.generated ? `Data as of ${new Date(DATA.generated).toLocaleString()}` : "No scan yet";
+  render();
+}
+
+async function pollStatus() {
+  const s = await (await fetch("/api/status")).json();
+  $("#scan").disabled = s.running;
+  $("#scan").textContent = s.running ? `Scanning ${s.done}/${s.total}…` : "Scan now";
+  $("#prog").style.width = s.running && s.total ? (100 * s.done / s.total) + "%" : "0";
+  if (pollStatus.was && !s.running) load();
+  pollStatus.was = s.running;
+  setTimeout(pollStatus, s.running ? 1000 : 5000);
+}
+$("#scan").onclick = async () => { await fetch("/api/scan", {method: "POST", headers: {"content-type": "application/json"}, body: "{}"}); pollStatus.was = true; };
+
+// ---------- filters
+const F = ["q", "sector", "bias", "strat", "pmin", "pmax", "risk", "iv", "gamma", "earn", "score"];
+try { const saved = JSON.parse(localStorage.getItem("radar-filters") || "{}"); F.forEach(k => { if (saved[k] != null) $("#f-" + k).value = saved[k]; }); } catch (e) {}
+F.forEach(k => $("#f-" + k).addEventListener("input", () => {
+  try { localStorage.setItem("radar-filters", JSON.stringify(Object.fromEntries(F.map(k => [k, $("#f-" + k).value])))); } catch (e) {}
+  render();
+}));
+$("#f-reset").onclick = () => { F.forEach(k => $("#f-" + k).value = ""); try { localStorage.removeItem("radar-filters"); } catch (e) {} render(); };
+
+function filtered() {
+  const v = k => $("#f-" + k).value;
+  return DATA.rows.filter(r => {
+    const i = r.idea;
+    if (v("q") && !r.ticker.includes(v("q").toUpperCase())) return false;
+    if (v("sector") && r.sector !== v("sector")) return false;
+    if (v("bias")) {
+      const b = i.bias;
+      if (v("bias") === "bullish" && b !== "bullish") return false;
+      if (v("bias") === "bearish" && b !== "bearish") return false;
+      if (v("bias") === "neutral" && !b.startsWith("neutral")) return false;
+      if (v("bias") === "move" && !b.startsWith("big")) return false;
+    }
+    if (v("strat") && i.strategy !== v("strat")) return false;
+    if (v("pmin") && r.price < +v("pmin")) return false;
+    if (v("pmax") && r.price > +v("pmax")) return false;
+    if (v("risk") && i.max_loss > +v("risk")) return false;
+    if (v("iv") === "rich" && !(r.signals.vrp > 0.15)) return false;
+    if (v("iv") === "cheap" && !(r.signals.vrp < -0.15)) return false;
+    if (v("gamma") && r.regime !== v("gamma")) return false;
+    if (v("earn") === "avoid" && r.earnings && r.earnings <= i.expiry) return false;
+    if (v("earn") === "only" && !(Math.abs(r.signals.earn) > 0.35)) return false;
+    if (v("score") && i.score < +v("score")) return false;
+    return true;
+  });
+}
+
+// scanned tickers with no trade idea: listed (searchable) only while no idea-specific filter is set
+function skippedFiltered() {
+  const v = k => $("#f-" + k).value;
+  if (["bias", "strat", "risk", "iv", "gamma", "earn", "score"].some(k => v(k))) return [];
+  return (DATA.skipped || []).filter(r => (!v("q") || r.ticker.includes(v("q").toUpperCase()))
+    && (!v("sector") || r.sector === v("sector"))
+    && (!v("pmin") || r.price >= +v("pmin")) && (!v("pmax") || r.price <= +v("pmax")));
+}
+
+// ---------- render
+function biasPill(b) {
+  if (b === "bullish") return '<span class="pill bull">▲ Bullish</span>';
+  if (b === "bearish") return '<span class="pill bear">▼ Bearish</span>';
+  if (b.startsWith("neutral")) return '<span class="pill neu">↔ Range</span>';
+  return '<span class="pill neu">⇕ Big move</span>';
+}
+function legsText(i) {
+  return i.legs.map(l => `${l.action} ${fmt$(l.strike, l.strike % 1 ? 1 : 0)} ${l.type}`).join(" · ") + ` · ${shortDate(i.expiry)}`;
+}
+const shortDate = d => new Date(d + "T12:00").toLocaleDateString(undefined, {month: "short", day: "numeric"});
+
+function render() {
+  const rows = filtered();
+  const top = [...rows].sort((a, b) => b.idea.score - a.idea.score).slice(0, 5);
+  $("#top-sub").textContent = DATA.rows.length ? `${rows.length} of ${DATA.rows.length} stocks match your filters` : "";
+  $("#top").innerHTML = top.length ? top.map((r, n) => {
+    const i = r.idea;
+    const costLabel = i.credit ? "Credit" : "Cost";
+    return `<div class="card" data-t="${r.ticker}">
+      <div class="row1"><div style="display:flex;gap:8px;align-items:center"><span class="rank">${n + 1}</span><span class="tk">${r.ticker}</span></div>${biasPill(i.bias)}</div>
+      <div class="px">${fmt$(r.price)} <span class="${r.change_1d >= 0 ? "up" : "down"}">${sgnP(r.change_1d)}</span> · ${r.sector}</div>
+      <div><div class="strat">${i.label}</div><div class="legs">${legsText(i)}</div></div>
+      <div class="kv">
+        <div><span>${costLabel}</span><b>${fmt$(Math.abs(i.cost), 0)}</b></div>
+        <div><span>Max loss</span><b>${fmt$(i.max_loss, 0)}</b></div>
+        <div><span>Max gain</span><b>${i.max_profit == null ? "Open" : fmt$(i.max_profit, 0)}</b></div>
+      </div>
+      <div class="reason">${i.why[0] || ""}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${r.rumor_flow_confirmed ? '<span class="pill flag">◉ Rumor + flow</span>' : ""}${Math.abs(r.signals.earn) > 0.35 ? '<span class="pill flag">◷ Earnings ' + shortDate(r.earnings) + '</span>' : ""}${r.regime === "negative" ? '<span class="pill flag">γ− volatile</span>' : '<span class="pill flag">γ+ calm</span>'}</div>
+      <div class="scoreline">Score <span class="meter"><i style="width:${i.score}%"></i></span><b>${i.score.toFixed(0)}</b></div>
+      <button class="btn ghost sm ptrade" data-t="${r.ticker}" title="Open this idea in the fake-money paper account">Paper trade</button>
+    </div>`;
+  }).join("") : `<div class="empty" style="grid-column:1/-1">${DATA.rows.length ? "Nothing matches these filters." : "First scan running — this takes about a minute…"}</div>`;
+  document.querySelectorAll(".card").forEach(c => c.onclick = () => openDetail(c.dataset.t));
+  document.querySelectorAll(".card .ptrade").forEach(b => b.onclick = e => { e.stopPropagation(); paperOpen(b.dataset.t, 1, b); });
+  renderTable(rows);
+}
+
+const COLS = [
+  ["ticker", "Ticker", r => r.ticker, r => `<b>${r.ticker}</b>`],
+  ["score", "Score", r => r.idea.score, r => r.idea.score.toFixed(0), "num"],
+  ["idea", "Idea", r => r.idea.label, r => r.idea.label],
+  ["bias", "Bias", r => r.idea.bias, r => biasPill(r.idea.bias)],
+  ["price", "Price", r => r.price, r => fmt$(r.price), "num"],
+  ["chg", "1 day", r => r.change_1d, r => `<span class="${r.change_1d >= 0 ? "up" : "down"}">${sgnP(r.change_1d)}</span>`, "num"],
+  ["mom", "1 month", r => r.mom_1m, r => `<span class="${r.mom_1m >= 0 ? "up" : "down"}">${sgnP(r.mom_1m)}</span>`, "num"],
+  ["iv", "IV", r => r.atm_iv, r => fmtP(r.atm_iv, 0), "num"],
+  ["ivrv", "IV ÷ realized", r => r.iv_rv, r => r.iv_rv == null ? "—" : r.iv_rv.toFixed(2), "num"],
+  ["gamma", "Gamma", r => r.regime, r => r.regime === "positive" ? "γ+ calm" : "γ− volatile"],
+  ["walls", "Put wall / Call wall", r => r.put_wall, r => `${fmt$(r.put_wall, 0)} / ${fmt$(r.call_wall, 0)}`, "num"],
+  ["earn", "Earnings", r => r.days_to_earnings ?? 999, r => r.earnings ? `${shortDate(r.earnings)} (${r.days_to_earnings}d)` : "—"],
+  ["risk", "Max loss", r => r.idea.max_loss, r => fmt$(r.idea.max_loss, 0), "num"],
+  ["flags", "Flags", r => (r.rumor_flow_confirmed ? 2 : 0) + (r.rumor_score > 0.5 ? 1 : 0), r => (r.rumor_flow_confirmed ? "◉ rumor+flow " : r.rumor_score > 0.5 ? "◌ rumor " : "") + (r.unusual_count ? `${r.unusual_count} unusual` : "")],
+];
+function renderTable(rows) {
+  const col = COLS.find(c => c[0] === sortKey) || COLS[1];
+  rows = [...rows].sort((a, b) => { const x = col[2](a), y = col[2](b); return (x > y ? 1 : x < y ? -1 : 0) * sortDir; });
+  const skipped = skippedFiltered();
+  $("#all-sub").textContent = `${rows.length} stocks${skipped.length ? ` + ${skipped.length} with no trade idea` : ""} · click a column to sort, a row for details`;
+  $("#tbl thead").innerHTML = "<tr>" + COLS.map(c => `<th class="${c[4] || ""}" data-k="${c[0]}">${c[1]}${c[0] === sortKey ? (sortDir > 0 ? " ↑" : " ↓") : ""}</th>`).join("") + "</tr>";
+  $("#tbl tbody").innerHTML = rows.map(r => `<tr data-t="${r.ticker}">` + COLS.map(c => `<td class="${c[4] || ""}">${c[3](r)}</td>`).join("") + "</tr>").join("")
+    + skipped.map(r => `<tr class="noidea"><td><b>${r.ticker}</b></td><td colspan="3">No trade idea — ${r.reason}</td><td class="num">${fmt$(r.price)}</td><td colspan="${COLS.length - 5}"></td></tr>`).join("");
+  document.querySelectorAll("#tbl th").forEach(th => th.onclick = () => { sortDir = th.dataset.k === sortKey ? -sortDir : -1; sortKey = th.dataset.k; render(); });
+  document.querySelectorAll("#tbl tbody tr[data-t]").forEach(tr => tr.onclick = () => openDetail(tr.dataset.t));
+}
+
+// ---------- tooltip
+const tip = $("#tip");
+function showTip(e, html) { tip.innerHTML = html; tip.style.display = "block"; const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8); tip.style.left = x + "px"; tip.style.top = (e.clientY + 14) + "px"; }
+function hideTip() { tip.style.display = "none"; }
+
+// ---------- detail drawer
+let current = null;
+$("#ov").onclick = closeDetail;
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDetail(); });
+function closeDetail() { $("#drawer").classList.remove("open"); $("#ov").classList.remove("open"); current = null; }
+
+async function openDetail(t) {
+  current = t;
+  const r = DATA.rows.find(x => x.ticker === t);
+  const d = await (await fetch("/api/ticker/" + t)).json();
+  const i = r.idea;
+  $("#drawer").classList.add("open"); $("#ov").classList.add("open");
+  $("#dhead").innerHTML = `<span class="tk">${t}</span><span class="px">${fmt$(r.price)} <span class="${r.change_1d >= 0 ? "up" : "down"}">${sgnP(r.change_1d)}</span> · ${r.sector} · as of ${r.as_of}</span>${biasPill(i.bias)}<span class="spacer"></span><label class="meta" title="Number of contracts">× <input type="number" id="pt-n" value="1" min="1" max="50" style="width:52px;background:var(--surface-2);border:1px solid var(--border);border-radius:7px;padding:5px 6px"></label><button class="btn" id="pt-open" title="Open this idea in the fake-money paper account">Paper trade</button><button class="btn ghost" onclick="closeDetail()">Close ✕</button>`;
+  $("#pt-open").onclick = () => paperOpen(t, +$("#pt-n").value || 1, $("#pt-open"));
+  const p = i.plan;
+  $("#dbody").innerHTML = `
+    <div class="panel span2"><h3>Price with dealer gamma levels <small>last ~9 months, daily</small></h3><div id="chart"></div>
+      <div class="legend"><span><i style="border-color:${css("--s1")}"></i>Call wall ${fmt$(d.gamma.call_wall, 0)}</span><span><i style="border-color:${css("--s2")}"></i>Put wall ${fmt$(d.gamma.put_wall, 0)}</span><span><i style="border-color:${css("--muted")}"></i>Zero gamma ${fmt$(d.gamma.zero_gamma, 0)}</span><span><i style="border-color:${css("--s3")};border-top-style:solid"></i>50-day average</span></div></div>
+    <div class="panel">
+      <h3>${i.label} <small>score ${i.score.toFixed(0)}/100 · ${i.dte} days to expiry</small></h3>
+      <table class="legstable"><thead><tr><th>Action</th><th>Type</th><th class="num">Strike</th><th>Expiry</th><th class="num">Mid</th><th class="num">Delta</th><th class="num">IV</th><th class="num">OI</th></tr></thead><tbody>
+        ${i.legs.map(l => `<tr><td><b>${l.action}</b></td><td>${l.type}</td><td class="num">${fmt$(l.strike)}</td><td>${l.expiry}</td><td class="num">${fmt$(l.mid)}</td><td class="num">${l.delta.toFixed(2)}</td><td class="num">${fmtP(l.iv, 0)}</td><td class="num">${l.oi.toLocaleString()}</td></tr>`).join("")}
+      </tbody></table>
+      <div class="kv" style="margin-top:10px">
+        <div><span>${i.credit ? "Credit received" : "Cost"} (1 contract)</span><b>${fmt$(Math.abs(i.cost), 0)}</b></div>
+        <div><span>Max loss</span><b>${fmt$(i.max_loss, 0)}</b></div>
+        <div><span>Max gain</span><b>${i.max_profit == null ? "Unlimited" : fmt$(i.max_profit, 0)}</b></div>
+      </div>
+      <div class="kv" style="margin-top:6px;grid-template-columns:1fr 1fr">
+        <div><span>Breakeven at expiry</span><b>${i.breakevens.map(b => fmt$(b)).join(" / ")}</b></div>
+        <div><span>Chance of profit (est.)</span><b>${i.pop_est != null ? fmtP(i.pop_est, 0) : "—"}</b></div>
+      </div>
+      <dl class="plan">
+        <dt>WHEN TO ENTER</dt><dd>${p.entry}</dd>
+        <dt>TAKE PROFIT</dt><dd>${p.take_profit}</dd>
+        <dt>STOP</dt><dd>${p.stop}</dd>
+        <dt>IDEA IS WRONG IF</dt><dd>${p.invalidation}</dd>
+        <dt>TIMING</dt><dd>${p.timing}</dd>
+        <dt>SIZE</dt><dd>${p.size}</dd>
+      </dl>
+      ${i.warnings.map(w => `<div class="warn">${w}</div>`).join("")}
+    </div>
+    <div class="panel">
+      <h3>Why this idea</h3><ul class="why">${i.why.map(w => `<li>${w}</li>`).join("")}</ul>
+      <h3 style="margin-top:16px">Signal breakdown <small>−1 bearish / cheap · +1 bullish / expensive</small></h3>
+      <div id="sigs"></div>
+    </div>
+    <div class="panel"><h3>Dealer gamma by strike <small>$ per 1% move · assumes dealers long calls, short puts</small></h3><div id="gex"></div></div>
+    <div class="panel"><h3>Earnings moves <small>${d.earnings_implied ? "bars: past reactions · band: implied now" : "no earnings within the window"}</small></h3><div id="earn"></div></div>
+    <div class="panel span2"><h3>Unusual options activity <small>latest session · volume above open interest · trade side is a guess on free data</small></h3>
+      ${d.flow.unusual_trades.length ? `<div class="tablewrap" style="border:0"><table><thead><tr><th>Contract</th><th>Type</th><th class="num">Strike</th><th>Expiry</th><th class="num">Volume</th><th class="num">Open int.</th><th class="num">Vol ÷ OI</th><th class="num">Premium</th><th class="num">IV</th><th>Side?</th></tr></thead><tbody>
+      ${d.flow.unusual_trades.map(u => `<tr><td>${u.contract}</td><td>${u.type === "C" ? "Call" : "Put"}</td><td class="num">${fmt$(u.strike)}</td><td>${u.expiry}</td><td class="num">${u.volume.toLocaleString()}</td><td class="num">${u.oi.toLocaleString()}</td><td class="num">${u.vol_oi.toFixed(1)}×</td><td class="num">${fmt$(u.premium, 0)}</td><td class="num">${fmtP(u.iv, 0)}</td><td>${u.side_guess}</td></tr>`).join("")}
+      </tbody></table></div>` : '<p class="meta">No unusual contracts in the latest session.</p>'}
+      <p class="meta">Calls ${fmt$(d.flow.call_premium, 0)} vs puts ${fmt$(d.flow.put_premium, 0)} premium traded · short-dated OTM calls ${fmtP(d.flow.otm_short_call_share)} of volume vs OTM puts ${fmtP(d.flow.otm_short_put_share)}</p>
+    </div>
+    <div class="panel span2 news"><h3>News &amp; rumor feed <small>last 7 days · ${d.news.method === "claude" ? "read by Claude" : "keyword scoring"} · tone ${d.news.sentiment >= 0 ? "+" : ""}${d.news.sentiment.toFixed(2)}</small></h3>
+      ${d.news.ai_summary ? `<p><b>AI summary:</b> ${d.news.ai_summary}</p>` : ""}
+      <ul>${d.news.headlines.map(h => `<li>${h.rumor ? '<span class="pill flag">◌ rumor</span> ' : ""}${h.tone === "pos" ? '<span class="up">▲</span> ' : h.tone === "neg" ? '<span class="down">▼</span> ' : ""}<a href="${h.link}" target="_blank" rel="noopener">${escapeHtml(h.title)}</a> <span class="src">${h.source} · ${new Date(h.published).toLocaleDateString()}</span></li>`).join("") || '<li class="meta">No headlines found.</li>'}</ul>
+    </div>`;
+  drawPrice(d, r);
+  drawSignals(r.signals);
+  drawGex(d.gamma, r.price);
+  drawEarnings(d);
+}
+const escapeHtml = s => s.replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+function drawPrice(d, r) {
+  const el = $("#chart");
+  if (chart) { chart.remove(); chart = null; }
+  chart = LightweightCharts.createChart(el, {
+    height: 340, width: el.clientWidth,
+    layout: {background: {color: css("--surface")}, textColor: css("--muted"), fontFamily: "system-ui"},
+    grid: {vertLines: {visible: false}, horzLines: {color: css("--grid")}},
+    rightPriceScale: {borderColor: css("--axis")}, timeScale: {borderColor: css("--axis")},
+    crosshair: {mode: 0},
+  });
+  const s = chart.addCandlestickSeries({upColor: css("--good"), downColor: css("--critical"), borderVisible: false,
+    wickUpColor: css("--good"), wickDownColor: css("--critical")});
+  s.setData(d.candles);
+  const sma = []; for (let k = 49; k < d.candles.length; k++) { let a = 0; for (let j = k - 49; j <= k; j++) a += d.candles[j].close; sma.push({time: d.candles[k].time, value: a / 50}); }
+  chart.addLineSeries({color: css("--s3"), lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false}).setData(sma);
+  const line = (price, color, title) => price && s.createPriceLine({price, color, lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title});
+  line(d.gamma.call_wall, css("--s1"), "Call wall");
+  line(d.gamma.put_wall, css("--s2"), "Put wall");
+  line(d.gamma.zero_gamma, css("--muted"), "0γ");
+  r.idea.legs.filter(l => l.action === "SELL").forEach(l => line(l.strike, css("--ink-2"), "Short " + l.type));
+  chart.timeScale().fitContent();
+  new ResizeObserver(() => chart && chart.applyOptions({width: el.clientWidth})).observe(el);
+}
+
+function drawSignals(s) {
+  const names = {vrp: "Vol premium", earn: "Earnings pricing", trend: "Trend", ivtilt: "Options tilt", news: "News / rumor", flow: "Unusual flow"};
+  $("#sigs").innerHTML = Object.entries(names).map(([k, n]) => {
+    const v = s[k] || 0, w = Math.abs(v) * 50;
+    const left = v >= 0 ? 50 : 50 - w;
+    return `<div class="sig"><span>${n}</span><span class="track"><span class="fill" style="left:${left}%;width:${w}%;background:${v >= 0 ? "var(--pos)" : "var(--neg)"}"></span></span><span class="v">${v >= 0 ? "+" : ""}${v.toFixed(2)}</span></div>`;
+  }).join("");
+}
+
+function drawGex(g, spot) {
+  const el = $("#gex"), data = g.profile;
+  if (!data.length) { el.innerHTML = '<p class="meta">No data</p>'; return; }
+  const W = el.clientWidth || 420, H = 220, m = {l: 8, r: 8, t: 10, b: 24};
+  const max = Math.max(...data.map(d => Math.abs(d.gex))) || 1;
+  const bw = (W - m.l - m.r) / data.length;
+  const y0 = m.t + (H - m.t - m.b) / 2, hh = (H - m.t - m.b) / 2;
+  const kmin = data[0].strike, kmax = data[data.length - 1].strike;
+  const xOf = k => m.l + (k - kmin) / ((kmax - kmin) || 1) * (W - m.l - m.r - bw) + bw / 2;
+  let svg = `<svg width="${W}" height="${H}" role="img" aria-label="Gamma exposure by strike">`;
+  svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${y0}" y2="${y0}" stroke="${css("--axis")}"/>`;
+  data.forEach((d, n) => {
+    const h = Math.abs(d.gex) / max * hh, x = m.l + n * bw;
+    const y = d.gex >= 0 ? y0 - h : y0;
+    svg += `<rect class="gb" data-n="${n}" x="${x + 1}" y="${y}" width="${Math.max(bw - 2, 1)}" height="${Math.max(h, 0.5)}" rx="${Math.min(2, bw / 4)}" fill="${d.gex >= 0 ? css("--pos") : css("--neg")}"/>`;
+  });
+  const sx = m.l + data.findIndex(d => d.strike >= spot) * bw;
+  svg += `<line x1="${sx}" x2="${sx}" y1="${m.t}" y2="${H - m.b}" stroke="${css("--ink-2")}" stroke-dasharray="3 3"/><text x="${sx + 4}" y="${m.t + 10}">spot ${spot.toFixed(0)}</text>`;
+  const ticks = 5; for (let k = 0; k <= ticks; k++) { const n = Math.round(k * (data.length - 1) / ticks); svg += `<text x="${m.l + n * bw + bw / 2}" y="${H - 6}" text-anchor="middle">${data[n].strike}</text>`; }
+  svg += `<text x="${m.l}" y="${m.t + 10}">calls (+)</text><text x="${m.l}" y="${H - m.b - 4}">puts (−)</text></svg>`;
+  el.innerHTML = svg;
+  el.querySelectorAll(".gb").forEach(b => {
+    const d = data[+b.dataset.n];
+    b.onmousemove = e => showTip(e, `Strike <b>${d.strike}</b><br>${d.gex >= 0 ? "+" : "−"}$${(Math.abs(d.gex) / 1e6).toFixed(1)}M per 1% move`);
+    b.onmouseleave = hideTip;
+  });
+  const net = g.net_gex;
+  el.insertAdjacentHTML("beforeend", `<p class="meta">Net ${net >= 0 ? "+" : "−"}$${(Math.abs(net) / 1e6).toFixed(0)}M per 1% move · ${g.regime === "positive" ? "γ+ dealers dampen moves" : "γ− dealers amplify moves"}</p>`);
+}
+
+function drawEarnings(d) {
+  const el = $("#earn"), h = d.earnings_history, imp = d.earnings_implied;
+  if (!h || !h.moves.length) { el.innerHTML = '<p class="meta">No upcoming earnings inside the scan window (or an index fund).</p>'; return; }
+  const mv = [...h.moves].reverse();
+  const W = el.clientWidth || 420, H = 200, m = {l: 34, r: 8, t: 10, b: 24};
+  const lim = Math.max(...mv.map(x => Math.abs(x.move)), imp ? imp.move_pct : 0) * 1.15;
+  const yOf = v => m.t + (H - m.t - m.b) / 2 - v / lim * (H - m.t - m.b) / 2;
+  const bw = (W - m.l - m.r) / mv.length;
+  let svg = `<svg width="${W}" height="${H}" role="img" aria-label="Past earnings moves">`;
+  if (imp) svg += `<rect x="${m.l}" y="${yOf(imp.move_pct)}" width="${W - m.l - m.r}" height="${yOf(-imp.move_pct) - yOf(imp.move_pct)}" fill="${css("--accent-soft")}" opacity=".45"/><text x="${W - m.r - 4}" y="${yOf(imp.move_pct) - 3}" text-anchor="end">implied ±${(imp.move_pct * 100).toFixed(1)}%</text>`;
+  svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${yOf(0)}" y2="${yOf(0)}" stroke="${css("--axis")}"/>`;
+  [lim * .66, -lim * .66].forEach(v => svg += `<text x="${m.l - 4}" y="${yOf(v) + 3}" text-anchor="end">${(v * 100).toFixed(0)}%</text>`);
+  mv.forEach((x, n) => {
+    const y = x.move >= 0 ? yOf(x.move) : yOf(0), hgt = Math.abs(yOf(x.move) - yOf(0));
+    svg += `<rect class="eb" data-n="${n}" x="${m.l + n * bw + bw * .2}" y="${y}" width="${bw * .6}" height="${Math.max(hgt, .5)}" rx="2" fill="${x.move >= 0 ? css("--pos") : css("--neg")}"/>`;
+    svg += `<text x="${m.l + n * bw + bw / 2}" y="${H - 6}" text-anchor="middle">${x.date.slice(2, 7)}</text>`;
+  });
+  el.innerHTML = svg + "</svg>" + `<p class="meta">Avg past move ±${(h.avg_abs_move * 100).toFixed(1)}%${imp ? ` · market now prices ±${(imp.move_pct * 100).toFixed(1)}% (earnings ${d.earnings_implied.expiry ? "before " + d.earnings_implied.expiry : ""})` : ""}</p>`;
+  el.querySelectorAll(".eb").forEach(b => { const x = mv[+b.dataset.n]; b.onmousemove = e => showTip(e, `${x.date}<br><b>${sgnP(x.move)}</b> next-day move`); b.onmouseleave = hideTip; });
+}
+
+// ---------- charts tab
+let cChart = null, cData = null, cTf = "1d", cSeries = null, cVol = null, cLiveAt = null;
+try { cTf = localStorage.getItem("radar-tf") || "1d"; } catch (e) {}
+document.querySelectorAll("#c-tfs button").forEach(b => {
+  b.classList.toggle("on", b.dataset.tf === cTf);
+  b.onclick = () => {
+    cTf = b.dataset.tf;
+    document.querySelectorAll("#c-tfs button").forEach(x => x.classList.toggle("on", x === b));
+    try { localStorage.setItem("radar-tf", cTf); } catch (e) {}
+    loadChart();
+  };
+});
+// chart layers the viewer can switch on/off (remembered per browser)
+// every indicator has its own colour, which the viewer can change (remembered per browser)
+const DEFAULT_COLORS = {volUp: "#26a69a", volDn: "#ef5350", sup: "#16a34a", res: "#dc2626", demand: "#22c55e", supply: "#f43f5e",
+  call: "#2a78d6", put: "#eb6834", rip1Up: "#22c55e", rip1Dn: "#ef4444", rip2Up: "#3b82f6", rip2Dn: "#f97316",
+  rip3Up: "#14b8a6", rip3Dn: "#ec4899", rip4Up: "#a855f7", rip4Dn: "#eab308", kronos: "#7c5cff",
+  ema9: "#f59e0b", ema21: "#06b6d4", ema50: "#8b5cf6", ema200: "#64748b", sigUp: "#16a34a", sigDn: "#dc2626", rsi: "#7c3aed"};
+const COLORS = {...DEFAULT_COLORS};
+try { Object.assign(COLORS, JSON.parse(localStorage.getItem("radar-colors") || "{}")); } catch (e) {}
+function syncColorInputs() { document.querySelectorAll("#c-layers input[type=color]").forEach(i => i.value = COLORS[i.dataset.color]); }
+syncColorInputs();
+document.querySelectorAll("#c-layers input[type=color]").forEach(i => {
+  i.onclick = e => e.stopPropagation();   // don't toggle the layer when picking a colour
+  i.oninput = () => { COLORS[i.dataset.color] = i.value; try { localStorage.setItem("radar-colors", JSON.stringify(COLORS)); } catch (e) {} if (cData) drawBigChart(); };
+});
+$("#c-colors-reset").onclick = () => { Object.assign(COLORS, DEFAULT_COLORS); try { localStorage.removeItem("radar-colors"); } catch (e) {} syncColorInputs(); if (cData) drawBigChart(); };
+const LAYERS = {volume: false, sr: false, zones: false, walls: false, rip1: false, rip2: false, rip3: false, rip4: false, kronos: false, ema: false, signals: false, rsi: false};
+try { Object.assign(LAYERS, JSON.parse(localStorage.getItem("radar-layers-v2") || "{}")); } catch (e) {}
+document.querySelectorAll("#c-layers input").forEach(cb => {
+  cb.checked = LAYERS[cb.dataset.layer];
+  cb.onchange = () => {
+    LAYERS[cb.dataset.layer] = cb.checked;
+    try { localStorage.setItem("radar-layers-v2", JSON.stringify(LAYERS)); } catch (e) {}
+    if (cData) drawBigChart();
+  };
+});
+// supply/demand zones: shaded boxes from the base candle to the right edge
+function zonesPrimitive(zones) {
+  let chart = null, series = null;
+  const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+  const renderer = {draw(target) {
+    target.useBitmapCoordinateSpace(({context: ctx, horizontalPixelRatio: hr, verticalPixelRatio: vr, bitmapSize}) => {
+      zones.forEach(z => {
+        let x = chart.timeScale().timeToCoordinate(z.time);
+        const y1 = series.priceToCoordinate(z.high), y2 = series.priceToCoordinate(z.low);
+        if (y1 == null || y2 == null) return;
+        if (x == null) x = 0;
+        const col = z.kind === "demand" ? COLORS.demand : COLORS.supply;
+        const x0 = x * hr, w = bitmapSize.width - x0, top = y1 * vr, h = Math.max((y2 - y1) * vr, 2);
+        ctx.fillStyle = rgba(col, z.fresh ? 0.07 : 0.04);   // faint so candles stay readable
+        ctx.fillRect(x0, top, w, h);
+        ctx.fillStyle = rgba(col, 0.4);                      // thin top/bottom edges mark the zone
+        ctx.fillRect(x0, top, w, Math.max(1, hr)); ctx.fillRect(x0, top + h - Math.max(1, hr), w, Math.max(1, hr));
+        // label stays, but semi-transparent so candles behind it show through
+        ctx.fillStyle = rgba(col, 0.5); ctx.font = `600 ${10 * vr}px system-ui`; ctx.textAlign = "right";
+        ctx.fillText(`${z.kind === "demand" ? "Demand" : "Supply"} ${z.low.toFixed(2)}–${z.high.toFixed(2)}${z.fresh ? " · fresh" : ""}`,
+                     bitmapSize.width - 70 * hr, top + 11 * vr);
+      });
+    });
+  }};
+  return {attached(p) { chart = p.chart; series = p.series; }, updateAllViews() {},
+          paneViews() { return [{renderer: () => renderer, zOrder: () => "bottom"}]; }};
+}
+// Ripster EMA clouds: band between a fast and slow EMA, green when fast > slow, red otherwise
+const RIPSTER = {rip1: [5, 12], rip2: [34, 50], rip3: [8, 9], rip4: [72, 89]};
+function ema(vals, n) { const k = 2 / (n + 1), out = []; let e = vals[0]; vals.forEach((v, i) => { e = i ? v * k + e * (1 - k) : v; out.push(e); }); return out; }
+function cloudPrimitive(times, fast, slow, alpha, up, dn) {
+  let chart = null, series = null;
+  const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+  const renderer = {draw(target) {
+    target.useBitmapCoordinateSpace(({context: ctx, horizontalPixelRatio: hr, verticalPixelRatio: vr}) => {
+      const ts = chart.timeScale();
+      const pts = times.map((t, i) => [ts.timeToCoordinate(t), series.priceToCoordinate(fast[i]), series.priceToCoordinate(slow[i]), fast[i] >= slow[i]]);
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], b = pts[i];
+        if (a[0] == null || b[0] == null || a[1] == null || b[1] == null) continue;
+        ctx.beginPath();
+        ctx.moveTo(a[0] * hr, a[1] * vr); ctx.lineTo(b[0] * hr, b[1] * vr); ctx.lineTo(b[0] * hr, b[2] * vr); ctx.lineTo(a[0] * hr, a[2] * vr); ctx.closePath();
+        ctx.fillStyle = rgba(b[3] ? up : dn, alpha); ctx.fill();
+      }
+    });
+  }};
+  return {attached(p) { chart = p.chart; series = p.series; }, updateAllViews() {},
+          paneViews() { return [{renderer: () => renderer, zOrder: () => "bottom"}]; }};
+}
+
+// futures quick-picks first (they trade ~23h a day, Sun–Fri)
+const FUTURES = {"/ES": "E-mini S&P 500 futures", "/NQ": "E-mini Nasdaq-100 futures", "/CL": "Crude oil futures", "/GC": "Gold futures"};
+function fillTickerList() { $("#c-list").innerHTML = Object.entries(FUTURES).map(([t, n]) => `<option value="${t}" label="${n}">`).join("")
+  + [...DATA.rows, ...(DATA.skipped || [])].map(r => `<option value="${r.ticker}">`).join(""); }
+const urlT = t => encodeURIComponent(t.replace(/^\//, ""));   // "/ES" goes in URLs as "ES" (server adds the slash back)
+$("#c-load").onclick = () => loadChart();
+$("#c-t").addEventListener("keydown", e => { if (e.key === "Enter") loadChart(); });
+// clicking the ticker box selects it, so typing a new ticker replaces the old one
+$("#c-t").addEventListener("focus", e => e.target.select());
+$("#c-t").addEventListener("mouseup", e => e.preventDefault());   // keep the selection Safari/Chrome would drop
+$("#c-t").addEventListener("change", () => loadChart());          // picking from the suggestions loads it
+const dots = n => "●".repeat(n) + "○".repeat(5 - n);
+const zoneRow = z => `<tr class="${z.kind === "demand" ? "sup" : "res"}"><td>${z.kind === "demand" ? "Demand" : "Supply"}</td><td class="num">${fmt$(z.low)}–${fmt$(z.high, 2).slice(1)}</td><td class="num">${sgnP(z.distance)}</td><td class="meta" title="Move away was ${z.move_atr}× the average day range">${z.fresh ? "fresh" : z.tests + " retests"}</td></tr>`;
+
+async function loadChart() {
+  const t = $("#c-t").value.trim().toUpperCase();
+  if (!t) return;
+  $("#c-msg").textContent = `Loading ${t} ${cTf}…`;
+  const r = await fetch(`/api/chart/${urlT(t)}?tf=${cTf}`);
+  const d = await r.json();
+  if (!r.ok) { $("#c-msg").textContent = d.detail; return; }
+  cData = d; liveFull = Date.now(); cLiveAt = new Date(); sPrevVol = null;
+  openStream(d.ticker);
+  $("#c-msg").textContent = "";
+  $("#c-ai-text").innerHTML = `<span class="meta">${d.claude_available ? "Click “Ask Claude to explain” for a plain-English read of these levels." : "Add ANTHROPIC_API_KEY to .env to turn this on."}</span>`;
+  $("#c-ai-sub").textContent = "";
+  $("#c-kronos").disabled = !d.kronos_available;
+  $("#c-kronos").title = d.kronos_available ? "AI forecast of the next bars on this timeframe" : d.kronos_state === "installing" ? "Kronos is being set up on the server (one-time, ~10–15 min)" : "Kronos isn't available here";
+  if (!d.kronos_available && d.kronos_state === "installing") $("#c-msg").textContent = "Kronos is being set up on the server (one-time, ~10–15 min) — reload this tab later.";
+  $("#c-ai").disabled = !d.claude_available;
+  drawBigChart();
+}
+
+const volBar = c => ({time: c.time, value: c.volume, color: (c.close >= c.open ? COLORS.volUp : COLORS.volDn) + "8c"});
+
+// ---- live updates: re-fetch on a timer and patch the last candles in place (keeps your zoom/scroll);
+// levels, zones and clouds are recalculated every 5 minutes
+const LIVE_EVERY = {"1m": 10, "5m": 15, "15m": 30, "30m": 30, "1h": 60, "1d": 60};
+let liveTimer = null, liveFull = 0;
+function scheduleLive() {
+  clearTimeout(liveTimer);
+  const every = LIVE_EVERY[cTf] || 60;
+  liveTimer = setTimeout(liveTick, (streaming() ? Math.max(every * 4, 60) : every) * 1000);   // slow reconcile while ticks stream
+}
+async function liveTick() {
+  try {
+    const onTab = !$("#tab-charts").classList.contains("hidden");
+    if (cData && onTab && !document.hidden) {
+      const {ticker, tf} = cData;
+      const r = await fetch(`/api/chart/${urlT(ticker)}?tf=${tf}`);
+      const d = r.ok ? await r.json() : null;
+      if (d && cData.ticker === ticker && cData.tf === tf && cSeries) {
+        d.candles = mergeStreamed(d.candles);
+        if (Date.now() - liveFull > 5 * 60 * 1000) {          // full redraw, same view
+          const view = cChart.timeScale().getVisibleLogicalRange();
+          cData = d; drawBigChart(); if (view) cChart.timeScale().setVisibleLogicalRange(view);
+          liveFull = Date.now();
+        } else {
+          const last = cData.candles[cData.candles.length - 1].time;
+          d.candles.filter(c => c.time >= last).forEach(c => { cSeries.update({...c}); if (cVol) cVol.update(volBar(c)); });
+          cData.candles = d.candles; cData.levels.price = d.levels.price; cData.market_open = d.market_open;
+        }
+        cLiveAt = new Date(); showLive();
+      }
+    }
+  } catch (e) {}
+  scheduleLive();
+}
+const TF_MIN = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60};
+function showLive() {
+  const el = $("#c-live");
+  if (!el || !cData) return;
+  const last = cData.candles[cData.candles.length - 1], age = Date.now() - new Date(last.iso);
+  // open = in session (futures ~23h Sun–Fri, stocks 9:30–4) and the newest bar is recent
+  const fresh = cData.market_open !== false && (cData.tf === "1d" ? age < 4 * 86400e3 : age < (TF_MIN[cData.tf] + 20) * 60e3);
+  el.innerHTML = streaming() ? `<span class="up">● Streaming</span> ${fmt$(last.close)} · tick ${new Date(sAt).toLocaleTimeString()}`
+    : fresh ? `<span class="up">● Live</span> ${fmt$(last.close)} · updated ${(cLiveAt || new Date()).toLocaleTimeString()}`
+    : `<span class="meta">○ Market closed · last bar ${new Date(last.iso).toLocaleString()}</span>`;
+}
+
+// ---- Schwab tick stream (Server-Sent Events): patches the current bar on every trade; polling above stays as fallback
+let sES = null, sTicker = null, sAt = 0, sPrevVol = null, sRetry = 60e3, sRetryTimer = null;
+const streaming = () => Date.now() - sAt < 30e3;   // ticks in the last 30 s
+function openStream(t) {
+  if (sES && sTicker === t && sES.readyState !== 2) return;
+  closeStream(); sTicker = t;
+  if (!window.EventSource || document.hidden) return;
+  sES = new EventSource(`/api/stream/${urlT(t)}`);
+  sES.onopen = () => { sRetry = 60e3; };
+  sES.onmessage = e => { try { onTick(JSON.parse(e.data)); } catch (err) {} };
+  // closed for good (204 = Schwab not connected / too many tickers): try again later, backing off
+  sES.onerror = () => { if (sES && sES.readyState === 2) { sES = null; clearTimeout(sRetryTimer); sRetryTimer = setTimeout(() => cData && openStream(cData.ticker), sRetry); sRetry = Math.min(sRetry * 2, 600e3); } };
+}
+function closeStream() { clearTimeout(sRetryTimer); if (sES) sES.close(); sES = null; }
+// bar a tick belongs to; tick.time is New York wall-clock seconds like the candles
+function barKey(sec, tf, fut) {
+  if (tf === "1d") return new Date((sec + (fut ? 6 * 3600 : 0)) * 1000).toISOString().slice(0, 10);   // futures day starts 18:00
+  const step = TF_MIN[tf] * 60, off = tf === "1h" && !fut ? 1800 : 0;   // stock hourly bars start at :30
+  return Math.floor((sec - off) / step) * step + off;
+}
+function onTick(k) {
+  if (!cData || !cSeries || cData.ticker !== sTicker || k.price == null) return;
+  const c = cData.candles, last = c[c.length - 1], key = barKey(k.time, cData.tf, cData.futures);
+  const dv = sPrevVol == null || k.volume == null ? 0 : Math.max(0, k.volume - sPrevVol);
+  if (k.volume != null) sPrevVol = k.volume;
+  if (key < last.time) return;   // older than the chart's newest bar
+  let bar = last;
+  if (key === last.time) Object.assign(bar, {high: Math.max(bar.high, k.price), low: Math.min(bar.low, k.price), close: k.price, volume: bar.volume + dv});
+  else { bar = {time: key, iso: new Date().toISOString(), open: k.price, high: k.price, low: k.price, close: k.price, volume: dv}; c.push(bar); }
+  bar.streamed = true;
+  cSeries.update({...bar}); if (cVol) cVol.update(volBar(bar));
+  cData.levels.price = k.price; sAt = Date.now(); showLive();
+}
+// a (delayed) poll result, keeping streamed highs/lows/closes and bars it doesn't have yet
+function mergeStreamed(polled) {
+  if (!streaming() || !cData || !polled.length) return polled;
+  const mine = new Map(cData.candles.slice(-5).filter(c => c.streamed).map(c => [c.time, c]));
+  const out = polled.map(c => { const s = mine.get(c.time); return s ? {...c, high: Math.max(c.high, s.high), low: Math.min(c.low, s.low), close: s.close, volume: Math.max(c.volume, s.volume), streamed: true} : c; });
+  mine.forEach(s => { if (s.time > out[out.length - 1].time) out.push(s); });
+  return out;
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) closeStream(); else if (cData) { openStream(cData.ticker); liveTick(); } });
+
+// Wilder's RSI
+function rsi(closes, n = 14) {
+  const out = Array(closes.length).fill(null);
+  let gain = 0, loss = 0;
+  for (let i = 1; i < closes.length; i++) {
+    const ch = closes[i] - closes[i - 1], g = Math.max(ch, 0), l = Math.max(-ch, 0);
+    if (i <= n) { gain += g / n; loss += l / n; if (i === n) out[i] = loss ? 100 - 100 / (1 + gain / loss) : 100; }
+    else { gain = (gain * (n - 1) + g) / n; loss = (loss * (n - 1) + l) / n; out[i] = loss ? 100 - 100 / (1 + gain / loss) : 100; }
+  }
+  return out;
+}
+let rChart = null;
+function drawRsi(d) {
+  const el = $("#rsichart");
+  if (rChart) { rChart.remove(); rChart = null; }
+  el.innerHTML = "";
+  if (!LAYERS.rsi) return;
+  rChart = LightweightCharts.createChart(el, {
+    height: el.clientHeight || 130, width: el.clientWidth,
+    layout: {background: {color: css("--surface")}, textColor: css("--muted"), fontFamily: "system-ui"},
+    grid: {vertLines: {visible: false}, horzLines: {visible: false}},
+    rightPriceScale: {borderColor: css("--axis"), scaleMargins: {top: 0.08, bottom: 0.08}},
+    timeScale: {visible: false}, crosshair: {mode: 0}, handleScroll: false, handleScale: false,
+  });
+  const vals = rsi(d.candles.map(c => c.close));
+  const line = rChart.addLineSeries({color: COLORS.rsi, lineWidth: 2, priceLineVisible: false, title: "RSI 14"});
+  line.setData(d.candles.map((c, i) => vals[i] == null ? {time: c.time} : {time: c.time, value: +vals[i].toFixed(1)}));
+  [[70, "Overbought"], [30, "Oversold"]].forEach(([v, t]) => line.createPriceLine({price: v, color: css("--axis"), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: t}));
+  // keep RSI scrolled/zoomed with the price chart
+  const sync = r => r && rChart && rChart.timeScale().setVisibleLogicalRange(r);
+  cChart.timeScale().subscribeVisibleLogicalRangeChange(sync);
+  sync(cChart.timeScale().getVisibleLogicalRange());
+  new ResizeObserver(() => rChart && rChart.applyOptions({width: el.clientWidth})).observe(el);
+}
+
+function drawBigChart() {
+  const d = cData, el = $("#bigchart"), L = d.levels;
+  if (cChart) { cChart.remove(); cChart = null; }
+  cChart = LightweightCharts.createChart(el, {
+    height: el.clientHeight, width: el.clientWidth,
+    layout: {background: {color: css("--surface")}, textColor: css("--muted"), fontFamily: "system-ui"},
+    grid: {vertLines: {visible: false}, horzLines: {color: css("--grid")}},
+    rightPriceScale: {borderColor: css("--axis")}, timeScale: {borderColor: css("--axis"), timeVisible: d.tf !== "1d", secondsVisible: false}, crosshair: {mode: 0},
+  });
+  const s = cChart.addCandlestickSeries({upColor: css("--good"), downColor: css("--critical"), borderVisible: false,
+    wickUpColor: css("--good"), wickDownColor: css("--critical")});
+  s.setData(d.candles.map(c => ({...c})));   // copies: the library rewrites daily times in place
+  cSeries = s; cVol = null;
+  const line = (price, color, title, style = 0, width = 2) => price && s.createPriceLine({price, color, lineWidth: width, lineStyle: style, axisLabelVisible: true, title});
+  if (LAYERS.sr) {
+    L.resistances.forEach(l => line(l.price, COLORS.res, `${l.label} ${l.price.toFixed(2)}`, 0, l.strength >= 4 ? 2 : 1));
+    L.supports.forEach(l => line(l.price, COLORS.sup, `${l.label} ${l.price.toFixed(2)}`, 0, l.strength >= 4 ? 2 : 1));
+  }
+  if (d.gamma && LAYERS.walls) { line(d.gamma.call_wall, COLORS.call, "Call wall", 2); line(d.gamma.put_wall, COLORS.put, "Put wall", 2); }
+  if (LAYERS.volume) {
+    // volume bars along the bottom 20% of the chart, on their own scale
+    const vol = cChart.addHistogramSeries({priceScaleId: "vol", priceFormat: {type: "volume"}, priceLineVisible: false, lastValueVisible: false});
+    cChart.priceScale("vol").applyOptions({scaleMargins: {top: 0.8, bottom: 0}});
+    const hex2 = (h, a) => h + Math.round(a * 255).toString(16).padStart(2, "0");
+    vol.setData(d.candles.map(c => volBar(c)));
+    cVol = vol;
+    s.priceScale().applyOptions({scaleMargins: {top: 0.06, bottom: 0.22}});
+  }
+  if (LAYERS.zones && d.zones) s.attachPrimitive(zonesPrimitive([...d.zones.demand.slice(0, 2), ...d.zones.supply.slice(0, 2)]));
+  const closes = d.candles.map(c => c.close), times = d.candles.map(c => c.time);
+  Object.entries(RIPSTER).forEach(([k, [a, b]]) => {
+    if (!LAYERS[k]) return;
+    const fast = ema(closes, a), slow = ema(closes, b);
+    s.attachPrimitive(cloudPrimitive(times, fast, slow, k === "rip2" || k === "rip4" ? 0.18 : 0.26, COLORS[k + "Up"], COLORS[k + "Dn"]));
+  });
+  if (LAYERS.ema) [9, 21, 50, 200].forEach(n => {
+    if (closes.length <= n) return;
+    const e = ema(closes, n);
+    cChart.addLineSeries({color: COLORS["ema" + n], lineWidth: n >= 50 ? 2 : 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, title: "EMA " + n})
+      .setData(times.slice(n).map((t, i) => ({time: t, value: e[i + n]})));
+  });
+  if (LAYERS.signals) {
+    // trend change = EMA 9 crossing EMA 21; "strong" when price is also on the same side of EMA 50
+    const e9 = ema(closes, 9), e21 = ema(closes, 21), e50 = ema(closes, 50), marks = [];
+    for (let i = 22; i < closes.length; i++) {
+      const up = e9[i] > e21[i], wasUp = e9[i - 1] > e21[i - 1];
+      if (up === wasUp) continue;
+      const strong = up ? closes[i] > e50[i] : closes[i] < e50[i];
+      marks.push(up ? {time: times[i], position: "belowBar", color: COLORS.sigUp, shape: "arrowUp", text: strong ? "Up" : "up?"}
+                    : {time: times[i], position: "aboveBar", color: COLORS.sigDn, shape: "arrowDown", text: strong ? "Down" : "down?"});
+    }
+    s.setMarkers(marks);
+    const lastUp = e9[e9.length - 1] > e21[e21.length - 1];
+    d._trend = {up: lastUp, since: marks.length ? marks[marks.length - 1].time : null};
+  }
+  const f = LAYERS.kronos ? d.forecast : null;
+  if (f) {
+    // new candles may have arrived since the forecast ran: only draw its bars after the newest candle
+    // (the library throws on repeated / out-of-order times, which would stop the whole redraw)
+    const last = d.candles[d.candles.length - 1];
+    const ks = f.dates.map((t, k) => k).filter(k => f.dates[k] > last.time);
+    const ser = (key, style) => cChart.addLineSeries({color: COLORS.kronos, lineWidth: 2, lineStyle: style, priceLineVisible: false, lastValueVisible: style === 0, crosshairMarkerVisible: false})
+      .setData([{time: last.time, value: last.close}, ...ks.map(k => ({time: f.dates[k], value: f[key][k]}))]);
+    try { if (ks.length) { ser("mid", 0); ser("low", 1); ser("high", 1); } } catch (e) { console.warn("Kronos draw", e); }
+  }
+  cChart.timeScale().setVisibleLogicalRange({from: d.candles.length - 160, to: d.candles.length + (f ? f.dates.length + 3 : 5)});
+  drawRsi(d);
+  new ResizeObserver(() => cChart && cChart.applyOptions({width: el.clientWidth, height: el.clientHeight})).observe(el);
+  $("#c-title").innerHTML = `<span>${d.ticker} · ${d.tf === "1d" ? "1D" : d.tf} <small>${d.tf_label} candles · avg bar range ${fmt$(L.atr)}</small></span><small id="c-live"></small>`;
+  showLive(); scheduleLive();
+  const key = (c, label, style = "solid", w = 2) => `<span><i style="border-color:${c};border-top-style:${style};border-top-width:${w}px"></i>${label}</span>`;
+  $("#c-legend").innerHTML = (LAYERS.sr ? key(COLORS.res, "Resistance") + key(COLORS.sup, "Support") : "")
+    + (LAYERS.zones ? key(COLORS.demand, "Demand zone", "solid", 8) + key(COLORS.supply, "Supply zone", "solid", 8) : "")
+    + Object.keys(RIPSTER).filter(k => LAYERS[k]).map(k => key(COLORS[k + "Up"], `${RIPSTER[k].join("/")} up`, "solid", 8) + key(COLORS[k + "Dn"], `${RIPSTER[k].join("/")} down`, "solid", 8)).join("")
+    + (d.gamma && LAYERS.walls ? key(COLORS.call, "Call wall", "dashed") + key(COLORS.put, "Put wall", "dashed") : "")
+    + (f ? key(COLORS.kronos, "Kronos forecast (dotted = likely range)") : "")
+    + (LAYERS.volume ? key(COLORS.volUp, "Volume", "solid", 8) : "")
+    + (LAYERS.ema ? [9, 21, 50, 200].map(n => key(COLORS["ema" + n], "EMA " + n)).join("") : "")
+    + (LAYERS.signals && d._trend ? `<span><b style="color:${d._trend.up ? COLORS.sigUp : COLORS.sigDn}">${d._trend.up ? "▲ Trend up" : "▼ Trend down"}</b> (EMA 9 vs 21${d._trend.since ? ", changed " + (typeof d._trend.since === "number" ? new Date(d._trend.since * 1000).toISOString().slice(5, 16).replace("T", " ") : d._trend.since) : ""}) · arrows mark each change; "?" = not confirmed by EMA 50</span>` : "")
+    + (LAYERS.rsi ? key(COLORS.rsi, "RSI 14 (below 30 oversold, above 70 overbought)") : "");
+  const row = (l, cls) => `<tr class="${cls}"><td>${l.label}</td><td class="num">${fmt$(l.price)}</td><td class="num">${sgnP(l.distance)}</td><td class="dots" title="${l.touches} touches · last tested ${l.last_tested}">${dots(l.strength)}</td></tr>`;
+  $("#c-levels").innerHTML = [...L.resistances].reverse().map(l => row(l, "res")).join("")
+    + `<tr class="now"><td>Now</td><td class="num">${fmt$(L.price)}</td><td></td><td></td></tr>`
+    + L.supports.map(l => row(l, "sup")).join("")
+    + (d.zones ? `<tr><td colspan="4" style="padding-top:12px;font-weight:600;color:var(--ink-2)">Supply / demand zones</td></tr>`
+      + [...d.zones.supply].reverse().map(z => zoneRow(z)).join("") + d.zones.demand.map(z => zoneRow(z)).join("")
+      + (d.zones.supply.length + d.zones.demand.length ? "" : `<tr><td colspan="4" class="meta">No unbroken zones nearby.</td></tr>`) : "")
+    + (d.gamma ? `<tr><td colspan="4" class="meta" style="padding-top:10px">Options: put wall ${fmt$(d.gamma.put_wall, 0)} · call wall ${fmt$(d.gamma.call_wall, 0)} · γ ${d.gamma.regime}</td></tr>` : "")
+    + (f ? `<tr><td colspan="4" class="meta">Kronos next ${f.dates.length} bars (to ${(f.labels || f.dates)[f.dates.length - 1]}): ${fmt$(f.mid[f.mid.length - 1])} (range ${fmt$(f.low[f.low.length - 1])}–${fmt$(f.high[f.high.length - 1])})</td></tr>` : "");
+}
+
+$("#c-kronos").onclick = async () => {
+  if (!cData) return;
+  const {ticker, tf} = cData, url = `/api/chart/${urlT(ticker)}/kronos?tf=${tf}`;
+  $("#c-kronos").disabled = true;
+  let r = await fetch(url, {method: "POST"}), j = await r.json();
+  // the forecast runs in the background on the server; check back every 4 s
+  while (r.ok && j.state === "running") {
+    $("#c-msg").textContent = `Kronos is forecasting ${ticker} ${tf}… ${j.elapsed || 0}s (usually 1–4 min)`;
+    await new Promise(res => setTimeout(res, 4000));
+    r = await fetch(url); j = await r.json();
+  }
+  $("#c-kronos").disabled = false;
+  if (!r.ok || j.state === "failed") { $("#c-msg").textContent = j.detail || j.error || "Kronos failed"; return; }
+  $("#c-msg").textContent = "";
+  if (cData.ticker === ticker && cData.tf === tf) {
+    // layers start off, so switch the Kronos layer on when you ask for a forecast
+    if (!LAYERS.kronos) { LAYERS.kronos = true; try { localStorage.setItem("radar-layers-v2", JSON.stringify(LAYERS)); } catch (e) {} const cb = $('#c-layers [data-layer="kronos"]'); if (cb) cb.checked = true; }
+    cData.forecast = j.forecast; drawBigChart();
+  }
+};
+
+$("#c-ai").onclick = async () => {
+  if (!cData) return;
+  $("#c-ai").disabled = true;
+  $("#c-ai-text").innerHTML = '<span class="meta">Claude is reading the chart…</span>';
+  const r = await fetch(`/api/chart/${urlT(cData.ticker)}/explain?tf=${cData.tf}`, {method: "POST"});
+  const j = await r.json();
+  $("#c-ai").disabled = false;
+  $("#c-ai-text").textContent = r.ok ? j.text : j.detail;
+  $("#c-ai-sub").textContent = r.ok ? "not financial advice" : "";
+};
+
+// ---------- chat
+const CHAT = [];
+$("#chat-open").onclick = () => { $("#chat").classList.toggle("hidden"); $("#chat-ctx").textContent = cData ? `· sees ${cData.ticker} ${cData.tf} chart` : ""; $("#chat-in").focus(); };
+$("#chat-close").onclick = () => $("#chat").classList.add("hidden");
+$("#chat-clear").onclick = () => { CHAT.length = 0; $("#chat-log").querySelectorAll(".msg:not(:first-child)").forEach(m => m.remove()); };
+$("#chat-in").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#chat-form").requestSubmit(); } });
+function addMsg(role, text) { const m = document.createElement("div"); m.className = "msg " + role; m.textContent = text; $("#chat-log").append(m); m.scrollIntoView({block: "end"}); return m; }
+$("#chat-form").onsubmit = async e => {
+  e.preventDefault();
+  const q = $("#chat-in").value.trim();
+  if (!q) return;
+  $("#chat-in").value = ""; addMsg("user", q); CHAT.push({role: "user", content: q});
+  const wait = addMsg("assistant", /predict|forecast|kronos|target|next (few )?(day|week|month)/i.test(q) ? "Running Kronos forecast + Claude… (can take 2–3 min)" : "Thinking…"); $("#chat-send").disabled = true;
+  try {
+    const r = await fetch("/api/chat", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({messages: CHAT, ticker: cData ? cData.ticker : null, tf: cData ? cData.tf : "1d"})});
+    const j = await r.json();
+    if (r.ok) { wait.textContent = j.text; CHAT.push({role: "assistant", content: j.text}); }
+    else { wait.className = "msg err"; wait.textContent = j.detail; CHAT.pop(); }
+  } catch (err) { wait.className = "msg err"; wait.textContent = "Couldn't reach the server."; CHAT.pop(); }
+  $("#chat-send").disabled = false; wait.scrollIntoView({block: "end"});
+};
+
+// ---------- paper trading (fake money)
+let PAPER = null;
+function toast(text, err) {
+  let t = $("#toast");
+  if (!t) { t = document.createElement("div"); t.id = "toast"; document.body.append(t); }
+  t.className = "toast" + (err ? " err" : ""); t.textContent = text; t.classList.remove("hidden");
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.add("hidden"), err ? 6000 : 3500);
+}
+const post = (url, body) => fetch(url, {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(body || {})});
+const money = v => v == null ? "—" : (v < 0 ? "−" : "") + fmt$(Math.abs(v), 0);
+const pnlSpan = (v, txt) => v == null ? "—" : `<span class="${v >= 0 ? "up" : "down"}">${txt}</span>`;
+const daysSince = (a, b) => Math.max(0, Math.round(((b ? new Date(b) : new Date()) - new Date(a)) / 864e5));
+// debit trades: what you paid / what it's worth; credit trades: what you collected / what buying it back costs
+const entryText = p => `${p.credit ? "credit" : "paid"} ${fmt$(Math.abs(p.entry_cost), 0)}`;
+const nowText = (p, v) => v == null ? "—" : `${p.credit ? "buy back" : "worth"} ${fmt$(Math.abs(v), 0)}`;
+const legsShort = p => p.legs.map(l => `${l.action} ${fmt$(l.strike, l.strike % 1 ? 1 : 0)} ${l.type} @ ${fmt$(l.entry)}`).join(" · ") + ` · ${shortDate(p.expiry)}`;
+
+async function paperOpen(t, n, btn) {
+  const was = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "Opening…"; }
+  try {
+    const r = await post("/api/paper/open", {ticker: t, contracts: n});
+    const j = await r.json();
+    if (r.ok) toast(`Paper trade opened: ${n} × ${t} ${j.label} — ${j.credit ? "credit" : "cost"} ${fmt$(Math.abs(j.entry_cost), 0)}, max loss ${fmt$(j.max_loss, 0)}. See the Paper trading tab.`);
+    else toast(j.detail || "Couldn't open the paper trade.", true);
+    if (r.ok && btn) btn.textContent = "✓ Opened";
+  } catch (e) { toast("Couldn't reach the server.", true); }
+  if (btn) setTimeout(() => { btn.disabled = false; btn.textContent = was; }, 1500);
+}
+
+async function loadPaper() {
+  $("#p-sub").textContent = "Getting latest option prices…";
+  try {
+    const r = await fetch("/api/paper");
+    PAPER = await r.json();
+    if (!r.ok) throw new Error(PAPER.detail);
+  } catch (e) { $("#p-sub").textContent = "Couldn't load the paper account."; return; }
+  renderPaper();
+}
+
+function renderPaper() {
+  const a = PAPER;
+  $("#p-src").textContent = a.data_source === "schwab" ? "Schwab (live)" : "Yahoo (about 15 min delayed)";
+  $("#p-sub").textContent = `Started with ${fmt$(a.start_cash, 0)} · total return ${sgnP(a.total_return)} · prices as of ${new Date().toLocaleTimeString()}`;
+  const tile = (v, label, cls) => `<div class="stat"><b class="${cls || ""}">${v}</b><span>${label}</span></div>`;
+  const pc = v => v > 0 ? "up" : v < 0 ? "down" : "";
+  $("#p-stats").innerHTML = tile(fmt$(a.equity, 0), "Equity (cash + open trades)")
+    + tile(fmt$(a.cash, 0), `Cash · ${fmt$(a.buying_power, 0)} available`)
+    + tile(money(a.open_pnl), `Open P&L (${a.open_count} open)`, pc(a.open_pnl))
+    + tile(money(a.realized_pnl), `Realized P&L (${a.closed_count} closed)`, pc(a.realized_pnl))
+    + tile(a.win_rate == null ? "—" : fmtP(a.win_rate, 0), a.closed_count ? `Win rate (${a.wins} of ${a.closed_count})` : "Win rate (no closed trades yet)");
+  $("#p-auto").checked = a.settings.auto_trade; $("#p-n").value = a.settings.top_n; $("#p-autoclose").checked = a.settings.auto_close;
+  drawEquity(a.equity_history);
+  const anyStale = a.positions.some(p => p.stale);
+  $("#p-open-sub").textContent = a.positions.length ? (anyStale ? "⏸ = no live quote right now (market closed?) — showing the last price" : "marked at the mid price") : "";
+  $("#p-open tbody").innerHTML = a.positions.map(p => {
+    const now = p.value;
+    return `<tr><td><b>${p.ticker}</b>${p.source === "auto" ? ' <span class="pill flag" title="Opened by auto-trade">auto</span>' : ""}</td>
+      <td>${p.label}${p.contracts > 1 ? ` × ${p.contracts}` : ""}<div class="meta">${biasPill(p.bias)} score ${p.score.toFixed(0)}</div></td>
+      <td><div class="legs">${legsShort(p)}</div></td>
+      <td class="num">${entryText(p)}<div class="meta">stock ${fmt$(p.entry_spot)}</div></td>
+      <td class="num">${p.stale ? `<span class="stale" title="${p.error ? escapeHtml(p.error) : "No live quote on at least one leg — last price kept"}">⏸</span> ` : ""}${nowText(p, now)}<div class="meta">stock ${fmt$(p.spot)}</div></td>
+      <td class="num">${pnlSpan(p.pnl, money(p.pnl))}</td>
+      <td class="num">${pnlSpan(p.pnl_pct, sgnP(p.pnl_pct, 0))}</td>
+      <td class="num">${p.take_profit_at == null ? "—" : `<span class="up">${money(p.take_profit_at)}</span> / <span class="down">${money(p.stop_at)}</span>`}</td>
+      <td class="num">${daysSince(p.opened)}</td>
+      <td><span class="pclose" data-id="${p.id}"><button class="btn ghost sm">Close</button></span></td></tr>`;
+  }).join("") || '<tr><td colspan="10" class="meta">No open paper trades — click “Paper trade” on a Top 5 card or in an idea\'s details.</td></tr>';
+  document.querySelectorAll(".pclose").forEach(box => box.querySelector("button").onclick = () => askConfirm(box, "Close at bid/ask?", "Close", () => paperClose(box.dataset.id)));
+  $("#p-closed-sub").textContent = a.closed.length ? `${a.closed.length} trades` : "";
+  $("#p-closed tbody").innerHTML = a.closed.map(c => `<tr><td>${new Date(c.closed).toLocaleDateString()}</td><td><b>${c.ticker}</b>${c.source === "auto" ? ' <span class="pill flag">auto</span>' : ""}</td><td>${c.label}${c.contracts > 1 ? ` × ${c.contracts}` : ""}</td>
+      <td class="num">${entryText(c)}</td><td class="num">${c.credit ? "bought back" : "sold for"} ${fmt$(Math.abs(c.exit_value), 0)}</td><td class="num">${pnlSpan(c.pnl, money(c.pnl))}</td><td class="num">${pnlSpan(c.pnl_pct, sgnP(c.pnl_pct, 0))}</td>
+      <td class="num">${daysSince(c.opened, c.closed)}</td><td>${c.reason}</td></tr>`).join("") || '<tr><td colspan="9" class="meta">No closed trades yet.</td></tr>';
+}
+
+// in-page "are you sure?" (no browser pop-ups): swaps the button for Yes / Cancel
+function askConfirm(box, question, yes, onYes, danger, onCancel) {
+  box.innerHTML = `<span class="confirm">${question} <button class="btn sm ${danger ? "danger" : ""}">${yes}</button><button class="btn ghost sm">Cancel</button></span>`;
+  const [ok, no] = box.querySelectorAll("button");
+  no.onclick = onCancel || renderPaper;
+  ok.onclick = async () => { ok.disabled = no.disabled = true; ok.textContent = "…"; await onYes(); };
+}
+
+async function paperClose(id) {
+  const r = await post("/api/paper/close", {id});
+  const j = await r.json();
+  toast(r.ok ? `Closed ${j.ticker} ${j.label}: P&L ${money(j.pnl)}` : j.detail, !r.ok);
+  loadPaper();
+}
+
+function drawEquity(h) {
+  const el = $("#p-eq");
+  if (!h || h.length < 2) { el.innerHTML = '<p class="meta">The line appears after a second day of trading — one point is saved each day you open this tab or a scan runs.</p>'; return; }
+  const W = el.clientWidth || 600, H = 160, m = {l: 56, r: 10, t: 10, b: 22};
+  const vals = h.map(x => x.equity), lo = Math.min(...vals), hi = Math.max(...vals), pad = (hi - lo) * 0.1 || hi * 0.01 || 1;
+  const y = v => m.t + (hi + pad - v) / (hi - lo + 2 * pad) * (H - m.t - m.b);
+  const x = n => m.l + n / (h.length - 1) * (W - m.l - m.r);
+  const start = PAPER.start_cash;
+  let svg = `<svg width="${W}" height="${H}" role="img" aria-label="Paper account value by day">`;
+  [hi + pad * 0.5, (hi + lo) / 2, lo - pad * 0.5].forEach(v => svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="${css("--grid")}"/><text x="${m.l - 6}" y="${y(v) + 3}" text-anchor="end">${fmt$(v, 0)}</text>`);
+  if (start > lo - pad && start < hi + pad) svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(start)}" y2="${y(start)}" stroke="${css("--axis")}" stroke-dasharray="3 3"/>`;
+  svg += `<polyline fill="none" stroke="${css("--accent")}" stroke-width="2" points="${h.map((p, n) => `${x(n)},${y(p.equity)}`).join(" ")}"/>`;
+  h.forEach((p, n) => svg += `<circle class="eqp" data-n="${n}" cx="${x(n)}" cy="${y(p.equity)}" r="${h.length > 40 ? 2 : 3.5}" fill="${css("--accent")}"/>`);
+  svg += `<text x="${m.l}" y="${H - 6}">${shortDate(h[0].date)}</text><text x="${W - m.r}" y="${H - 6}" text-anchor="end">${shortDate(h[h.length - 1].date)}</text></svg>`;
+  el.innerHTML = svg;
+  el.querySelectorAll(".eqp").forEach(c => { const p = h[+c.dataset.n]; c.onmousemove = e => showTip(e, `${p.date}<br><b>${fmt$(p.equity, 0)}</b>`); c.onmouseleave = hideTip; });
+}
+
+async function savePaperSettings() {
+  const r = await post("/api/paper/settings", {auto_trade: $("#p-auto").checked, top_n: +$("#p-n").value || 3, auto_close: $("#p-autoclose").checked});
+  if (r.ok) { PAPER.settings = await r.json(); toast(PAPER.settings.auto_trade ? `Auto-trade on: the top ${PAPER.settings.top_n} ideas are opened after each day's scan.` : "Auto-trade off."); }
+  else toast("Couldn't save the setting.", true);
+}
+["#p-auto", "#p-n", "#p-autoclose"].forEach(s => $(s).addEventListener("change", savePaperSettings));
+$("#p-refresh").onclick = loadPaper;
+function bindReset() {
+  const box = $("#p-reset-box");
+  box.innerHTML = '<button class="btn ghost">Reset account…</button>';
+  box.querySelector("button").onclick = () => askConfirm(box, "Delete all paper trades and start again with $10,000?", "Yes, reset", async () => {
+    const r = await post("/api/paper/reset", {cash: 10000});
+    const j = await r.json(); toast(r.ok ? "Paper account reset to $10,000." : j.detail, !r.ok);
+    bindReset(); loadPaper();
+  }, true, bindReset);
+}
+bindReset();
+
+// ---------- track record
+async function loadHistory() {
+  const h = await (await fetch("/api/history")).json();
+  const s = h.stats;
+  $("#stats").innerHTML = `<div class="stat"><b>${h.picks.length}</b><span>picks logged</span></div>
+    <div class="stat"><b>${s.graded || 0}</b><span>from earlier days</span></div>
+    <div class="stat"><b>${s.hit_rate == null ? "—" : fmtP(s.hit_rate, 0)}</b><span>on track (earlier days)</span></div>`;
+  $("#hist tbody").innerHTML = h.picks.map(p => `<tr><td>${p.date}</td><td><b>${p.ticker}</b></td><td>${p.label}</td><td>${biasPill(p.bias)}</td><td class="num">${p.score.toFixed(0)}</td><td class="num">${fmt$(p.price)}</td><td class="num">${fmt$(p.now)}</td><td class="num">${p.move == null ? "—" : `<span class="${p.move >= 0 ? "up" : "down"}">${sgnP(p.move)}</span>`}</td><td>${p.status === "on track" ? '<span class="up">✓ on track</span>' : p.status === "against" ? '<span class="down">✕ against</span>' : "?"}</td></tr>`).join("") || '<tr><td colspan="9" class="meta">No picks logged yet — they appear after the first scan.</td></tr>';
+}
+
+// ---------- data source / Schwab
+async function loadSource() {
+  const s = await (await fetch("/api/schwab/status")).json();
+  const pill = $("#src");
+  pill.textContent = s.connected ? "● Live · Schwab" : "● Delayed · Yahoo";
+  pill.className = "pill " + (s.connected ? "bull" : "neu");
+  const p = $("#schwab-panel");
+  if (!p) return;
+  if (!s.configured) {
+    p.innerHTML = `<p><b>Schwab not set up yet.</b> Create an app at <a href="https://developer.schwab.com" target="_blank" rel="noopener">developer.schwab.com</a> with callback URL <code>https://options-radar-16f492.azurewebsites.net/</code>, then add <code>SCHWAB_APP_KEY</code> and <code>SCHWAB_APP_SECRET</code> to the <code>.env</code> file (or Azure app settings) and restart. Until then the dashboard uses Yahoo.</p>`;
+    return;
+  }
+  const exp = s.expires ? new Date(s.expires).toLocaleString() : null;
+  p.innerHTML = `<p>${s.connected ? `<span class="up">✓ Connected to Schwab.</span> Login renews by <b>${exp}</b> (Schwab requires logging in again every 7 days).` : `<span class="down">Not connected${exp ? " — login expired " + exp : ""}.</span> Using Yahoo until you connect.`}</p>
+    <ol style="margin:8px 0 0;padding-left:18px">
+      <li><button class="btn" id="sw-start">${s.connected ? "Reconnect" : "Connect"} Schwab</button> — opens Schwab's login in a new tab.</li>
+      <li>After you approve, the browser comes back to this dashboard with <code>?code=...</code> in the address. Copy the whole address from the address bar.</li>
+      <li>Paste it here: <input id="sw-url" style="width:min(520px,100%);background:var(--surface-2);border:1px solid var(--border);border-radius:7px;padding:6px 8px" placeholder="https://options-radar-16f492.azurewebsites.net/?code=..."> <button class="btn ghost" id="sw-finish">Finish</button> <span class="meta" id="sw-msg"></span></li>
+    </ol>`;
+  $("#sw-start").onclick = async () => {
+    const r = await fetch("/api/schwab/start", {method: "POST"});
+    const j = await r.json();
+    if (!r.ok) { $("#sw-msg").textContent = j.detail; return; }
+    window.open(j.url, "_blank", "noopener");
+  };
+  $("#sw-finish").onclick = async () => {
+    $("#sw-msg").textContent = "Connecting…";
+    const r = await fetch("/api/schwab/finish", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({url: $("#sw-url").value})});
+    const j = await r.json();
+    $("#sw-msg").textContent = r.ok ? "Connected — rescanning with Schwab data…" : j.detail;
+    if (r.ok) { await fetch("/api/scan", {method: "POST", headers: {"content-type": "application/json"}, body: "{}"}); pollStatus.was = true; loadSource(); }
+  };
+}
+
+// ---------- universe
+async function loadUniverse() {
+  loadSource();
+  const s = await (await fetch("/api/settings")).json();
+  $("#uni").value = Object.entries(s.universe).map(([t, sec]) => `${t}, ${sec}`).join("\n");
+}
+async function saveUniverse(text) {
+  const uni = {};
+  text.split("\n").forEach(l => { const [t, sec] = l.split(","); if (t && t.trim()) uni[t.trim().toUpperCase()] = (sec || "Custom").trim(); });
+  await fetch("/api/settings", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({universe: uni})});
+  $("#uni-msg").textContent = `Saved ${Object.keys(uni).length} tickers — scanning…`;
+  await fetch("/api/scan", {method: "POST", headers: {"content-type": "application/json"}, body: "{}"});
+  pollStatus.was = true;
+}
+$("#uni-save").onclick = () => saveUniverse($("#uni").value);
+$("#uni-reset").onclick = async () => { await fetch("/api/settings", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({universe: {}})}); location.reload(); };
+
+load(); pollStatus(); loadSource();
+</script>
+</body>
+</html>

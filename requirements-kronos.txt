@@ -1,0 +1,7 @@
+# Optional: Kronos price forecast (Charts tab). Local only — too heavy for the free Azure plan.
+# Install: .venv/bin/pip install -r requirements-kronos.txt
+torch>=2.0.0
+einops
+huggingface_hub
+safetensors
+tqdm

@@ -1,0 +1,10 @@
+.env
+.venv/
+data/
+.azure
+.venv-kronos/
+__pycache__/
+*.pyc
+.DS_Store
+*.zip
+schwab_token*.json
