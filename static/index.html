@@ -531,7 +531,7 @@ function render() {
         <div><span>Max loss</span><b>${fmt$(i.max_loss, 0)}</b></div>
         <div><span>Max gain</span><b>${i.max_profit == null ? "Open" : fmt$(i.max_profit, 0)}</b></div>
       </div>
-      <div class="reason">${i.why[0] || ""}</div>
+      <div class="reason">${escapeHtml(i.why[0] || "")}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">${r.rumor_flow_confirmed ? '<span class="pill flag">◉ Rumor + flow</span>' : ""}${Math.abs(r.signals.earn) > 0.35 ? '<span class="pill flag">◷ Earnings ' + shortDate(r.earnings) + '</span>' : ""}${r.regime === "negative" ? '<span class="pill flag">γ− volatile</span>' : '<span class="pill flag">γ+ calm</span>'}</div>
       <div class="scoreline">Score <span class="meter"><i style="width:${i.score}%"></i></span><b>${i.score.toFixed(0)}</b></div>
       <button class="btn ghost sm ptrade" data-t="${r.ticker}" title="Open this idea in the fake-money paper account">Paper trade</button>
@@ -565,7 +565,7 @@ function renderTable(rows) {
   $("#all-sub").textContent = `${rows.length} stocks${skipped.length ? ` + ${skipped.length} with no trade idea` : ""} · click a column to sort, a row for details`;
   $("#tbl thead").innerHTML = "<tr>" + COLS.map(c => `<th class="${c[4] || ""}" data-k="${c[0]}">${c[1]}${c[0] === sortKey ? (sortDir > 0 ? " ↑" : " ↓") : ""}</th>`).join("") + "</tr>";
   $("#tbl tbody").innerHTML = rows.map(r => `<tr data-t="${r.ticker}">` + COLS.map(c => `<td class="${c[4] || ""}">${c[3](r)}</td>`).join("") + "</tr>").join("")
-    + skipped.map(r => `<tr class="noidea"><td><b>${r.ticker}</b></td><td colspan="3">No trade idea — ${r.reason}</td><td class="num">${fmt$(r.price)}</td><td colspan="${COLS.length - 5}"></td></tr>`).join("");
+    + skipped.map(r => `<tr class="noidea"><td><b>${escapeHtml(r.ticker)}</b></td><td colspan="3">No trade idea — ${escapeHtml(r.reason)}</td><td class="num">${fmt$(r.price)}</td><td colspan="${COLS.length - 5}"></td></tr>`).join("");
   document.querySelectorAll("#tbl th").forEach(th => th.onclick = () => { sortDir = th.dataset.k === sortKey ? -sortDir : -1; sortKey = th.dataset.k; render(); });
   document.querySelectorAll("#tbl tbody tr[data-t]").forEach(tr => tr.onclick = () => openDetail(tr.dataset.t));
 }
@@ -618,7 +618,7 @@ async function openDetail(t) {
       ${i.warnings.map(w => `<div class="warn">${w}</div>`).join("")}
     </div>
     <div class="panel">
-      <h3>Why this idea</h3><ul class="why">${i.why.map(w => `<li>${w}</li>`).join("")}</ul>
+      <h3>Why this idea</h3><ul class="why">${i.why.map(w => `<li>${escapeHtml(w)}</li>`).join("")}</ul>
       <h3 style="margin-top:16px">Signal breakdown <small>−1 bearish / cheap · +1 bullish / expensive</small></h3>
       <div id="sigs"></div>
     </div>
@@ -631,15 +631,17 @@ async function openDetail(t) {
       <p class="meta">Calls ${fmt$(d.flow.call_premium, 0)} vs puts ${fmt$(d.flow.put_premium, 0)} premium traded · short-dated OTM calls ${fmtP(d.flow.otm_short_call_share)} of volume vs OTM puts ${fmtP(d.flow.otm_short_put_share)}</p>
     </div>
     <div class="panel span2 news"><h3>News &amp; rumor feed <small>last 7 days · ${d.news.method === "claude" ? "read by Claude" : "keyword scoring"} · tone ${d.news.sentiment >= 0 ? "+" : ""}${d.news.sentiment.toFixed(2)}</small></h3>
-      ${d.news.ai_summary ? `<p><b>AI summary:</b> ${d.news.ai_summary}</p>` : ""}
-      <ul>${d.news.headlines.map(h => `<li>${h.rumor ? '<span class="pill flag">◌ rumor</span> ' : ""}${h.tone === "pos" ? '<span class="up">▲</span> ' : h.tone === "neg" ? '<span class="down">▼</span> ' : ""}<a href="${h.link}" target="_blank" rel="noopener">${escapeHtml(h.title)}</a> <span class="src">${h.source} · ${new Date(h.published).toLocaleDateString()}</span></li>`).join("") || '<li class="meta">No headlines found.</li>'}</ul>
+      ${d.news.ai_summary ? `<p><b>AI summary:</b> ${escapeHtml(d.news.ai_summary)}</p>` : ""}
+      <ul>${d.news.headlines.map(h => `<li>${h.rumor ? '<span class="pill flag">◌ rumor</span> ' : ""}${h.tone === "pos" ? '<span class="up">▲</span> ' : h.tone === "neg" ? '<span class="down">▼</span> ' : ""}<a href="${safeUrl(h.link)}" target="_blank" rel="noopener">${escapeHtml(h.title)}</a> <span class="src">${escapeHtml(h.source)} · ${new Date(h.published).toLocaleDateString()}</span></li>`).join("") || '<li class="meta">No headlines found.</li>'}</ul>
     </div>`;
   drawPrice(d, r);
   drawSignals(r.signals);
   drawGex(d.gamma, r.price);
   drawEarnings(d);
 }
-const escapeHtml = s => s.replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const escapeHtml = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+// Only http(s) links from feeds, so a "javascript:" link can't run
+const safeUrl = u => /^https?:\/\//i.test(String(u ?? "")) ? escapeHtml(u) : "#";
 
 function drawPrice(d, r) {
   const el = $("#chart");
@@ -1187,7 +1189,7 @@ function renderPaper() {
   $("#p-closed-sub").textContent = a.closed.length ? `${a.closed.length} trades` : "";
   $("#p-closed tbody").innerHTML = a.closed.map(c => `<tr><td>${new Date(c.closed).toLocaleDateString()}</td><td><b>${c.ticker}</b>${c.source === "auto" ? ' <span class="pill flag">auto</span>' : ""}</td><td>${c.label}${c.contracts > 1 ? ` × ${c.contracts}` : ""}</td>
       <td class="num">${entryText(c)}</td><td class="num">${c.credit ? "bought back" : "sold for"} ${fmt$(Math.abs(c.exit_value), 0)}</td><td class="num">${pnlSpan(c.pnl, money(c.pnl))}</td><td class="num">${pnlSpan(c.pnl_pct, sgnP(c.pnl_pct, 0))}</td>
-      <td class="num">${daysSince(c.opened, c.closed)}</td><td>${c.reason}</td></tr>`).join("") || '<tr><td colspan="9" class="meta">No closed trades yet.</td></tr>';
+      <td class="num">${daysSince(c.opened, c.closed)}</td><td>${escapeHtml(c.reason)}</td></tr>`).join("") || '<tr><td colspan="9" class="meta">No closed trades yet.</td></tr>';
 }
 
 // in-page "are you sure?" (no browser pop-ups): swaps the button for Yes / Cancel
@@ -1295,8 +1297,8 @@ async function saveUniverse(text) {
   const uni = {};
   text.split("\n").forEach(l => { const [t, sec] = l.split(","); if (t && t.trim()) uni[t.trim().toUpperCase()] = (sec || "Custom").trim(); });
   await fetch("/api/settings", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({universe: uni})});
-  $("#uni-msg").textContent = `Saved ${Object.keys(uni).length} tickers — scanning…`;
-  await fetch("/api/scan", {method: "POST", headers: {"content-type": "application/json"}, body: "{}"});
+  const r = await (await fetch("/api/scan", {method: "POST", headers: {"content-type": "application/json"}, body: "{}"})).json();
+  $("#uni-msg").textContent = `Saved ${Object.keys(uni).length} tickers — ${r.queued ? "will scan as soon as the current scan finishes" : "scanning…"}`;
   pollStatus.was = true;
 }
 $("#uni-save").onclick = () => saveUniverse($("#uni").value);

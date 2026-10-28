@@ -237,15 +237,19 @@ def _close_prices(p: dict, chain, spot) -> tuple[list[float], str] | None:
 
 
 def close(pid: str, reason: str | None = None) -> dict:
+    # Quotes are downloaded before taking the lock, so other paper requests don't wait on the network
+    p = next((x for x in load()["positions"] if x["id"] == pid), None)
+    if p is None:
+        raise KeyError("No open position with that id.")
+    chain, spot = _chain(p["ticker"], p.get("entry_spot"))
+    res = _close_prices(p, chain, spot)
+    if res is None:
+        raise ValueError("Couldn't get a price to close at — try again later.")
     with _lock:
         acct = load()
         p = next((x for x in acct["positions"] if x["id"] == pid), None)
-        if p is None:
-            raise KeyError("No open position with that id.")
-        chain, spot = _chain(p["ticker"], p.get("entry_spot"))
-        res = _close_prices(p, chain, spot)
-        if res is None:
-            raise ValueError("Couldn't get a price to close at — try again later.")
+        if p is None:   # closed by someone else (e.g. an exit rule) while we were fetching quotes
+            raise KeyError("That position was already closed.")
         _settle(acct, p, *(res if reason is None else (res[0], reason)))
         save(acct)
         return acct["closed"][-1]
@@ -289,8 +293,9 @@ def update_settings(new: dict) -> dict:
 
 # ------------------------------------------------------------------ marking
 def _buying_power(acct: dict) -> float:
-    """Cash minus collateral held for credit trades (their max loss)."""
-    return acct["cash"] - sum(p["max_loss"] for p in acct["positions"] if p["credit"])
+    """Cash minus collateral held for credit trades. Cash already includes the credit received, so the collateral is
+    the whole spread width: max loss plus that credit (entry_cost is negative for a credit)."""
+    return acct["cash"] - sum(p["max_loss"] - p["entry_cost"] for p in acct["positions"] if p["credit"])
 
 
 def _mark_position(p: dict) -> tuple[list[float], str] | None:
@@ -326,18 +331,24 @@ def _mark_position(p: dict) -> tuple[list[float], str] | None:
 
 def mark_all() -> dict:
     """Mark every open position, apply exit rules, snapshot today's equity. Returns the account."""
-    acct = load()
-    if acct["positions"]:
+    # Marking downloads quotes, so it runs on a copy without the lock; the lock is only held to write the results
+    positions = load()["positions"]
+    if positions:
         with ThreadPoolExecutor(max_workers=4) as ex:      # download chains in parallel
-            list(ex.map(lambda t: _chain(t, None), {p["ticker"] for p in acct["positions"]}))
+            list(ex.map(lambda t: _chain(t, None), {p["ticker"] for p in positions}))
+    marked = {}
+    for p in positions:
+        try:
+            marked[p["id"]] = (p, _mark_position(p))
+        except Exception as e:  # noqa: BLE001 - one bad quote shouldn't break the page
+            p["stale"], p["error"] = True, str(e)
+            marked[p["id"]] = (p, None)
     with _lock:
         acct = load()
+        # Positions opened or closed meanwhile are left as they are
+        acct["positions"] = [marked[p["id"]][0] if p["id"] in marked else p for p in acct["positions"]]
         for p in list(acct["positions"]):
-            try:
-                hit = _mark_position(p)
-            except Exception as e:  # noqa: BLE001 - one bad quote shouldn't break the page
-                p["stale"], p["error"] = True, str(e)
-                continue
+            hit = marked.get(p["id"], (None, None))[1]
             if hit and (acct["settings"]["auto_close"] or _expired(p["expiry"])):
                 _settle(acct, p, *hit)
         _snapshot(acct)

@@ -34,6 +34,8 @@ NEG_WORDS = [
 ]
 
 _CACHE: dict = {}
+_CLAUDE_CACHE: dict = {}   # (ticker, headlines) -> Claude's read, so a rescan doesn't pay to re-read the same headlines
+_CLAUDE_CACHE_MAX = 500
 
 
 def _count(text: str, words) -> int:
@@ -118,6 +120,9 @@ def _claude_classify(ticker: str, items: list[dict]):
     if not api_key or not items:
         return None
     heads = "\n".join(f"- {i['published'][:10]} {i['title']}" for i in items)
+    key = (ticker, heads)
+    if key in _CLAUDE_CACHE:
+        return _CLAUDE_CACHE[key]
     prompt = (
         f"Headlines about {ticker} from the last 7 days:\n{heads}\n\n"
         "Return ONLY JSON: {\"sentiment\": number from -1 (very bearish) to 1 (very bullish) "
@@ -128,9 +133,14 @@ def _claude_classify(ticker: str, items: list[dict]):
     text = ask_claude(prompt, max_tokens=1500)
     m = re.search(r"\{.*\}", text or "", re.S)
     try:
-        return json.loads(m.group(0)) if m else None
+        out = json.loads(m.group(0)) if m else None
     except Exception:
         return None
+    if out is not None:   # failures aren't cached, so they're retried next scan
+        if len(_CLAUDE_CACHE) >= _CLAUDE_CACHE_MAX:
+            _CLAUDE_CACHE.pop(next(iter(_CLAUDE_CACHE)))
+        _CLAUDE_CACHE[key] = out
+    return out
 
 
 last_error = None  # why the most recent ask_claude call failed, shown in the UI

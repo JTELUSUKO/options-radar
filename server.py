@@ -108,12 +108,35 @@ def skipped_summary(r):
             "reason": r.get("no_idea") or "no trade passed the checks", "data_source": r["data_source"]}
 
 
-def run_scan(tickers: dict):
+_queued_scan: dict = {}   # {"tickers": ...} when a scan was asked for while another was running
+
+
+def run_scan(tickers: dict) -> bool:
+    """Scan the tickers. If a scan is already running, queue this one to run right after it (returns False)."""
     with lock:
         if state["running"]:
-            return
+            _queued_scan["tickers"] = tickers   # newest request wins
+            return False
         state.update(running=True, done=0, total=len(tickers), errors=[], started=datetime.now().isoformat())
+    scanned = None
+    try:
+        scanned = _scan(tickers)
+    except Exception as e:  # noqa: BLE001 - report it, but never leave the scan stuck as "running"
+        state["errors"].append(f"scan failed: {e}")
+    finally:
+        with lock:
+            state.update(running=False, finished=datetime.now().isoformat())
+            queued = _queued_scan.pop("tickers", None)
+    if queued is not None:
+        threading.Thread(target=run_scan, args=(queued,), daemon=True).start()
+        return True
+    if scanned:
+        _paper_after_scan(*scanned)
+        threading.Thread(target=_kronos_precompute, daemon=True).start()
+    return True
 
+
+def _scan(tickers: dict):
     failed = {}
 
     def work(item):
@@ -144,9 +167,7 @@ def run_scan(tickers: dict):
     (DATA / "snapshots" / f"{date.today().isoformat()}.json").write_text(json.dumps(payload))
     (DATA / "details.json").write_text(json.dumps(details))
     _record_history(rows[:5])
-    state.update(running=False, finished=datetime.now().isoformat())
-    _paper_after_scan(results, rows)
-    threading.Thread(target=_kronos_precompute, daemon=True).start()
+    return results, rows
 
 
 def _paper_after_scan(results, rows):
@@ -161,15 +182,25 @@ def _paper_after_scan(results, rows):
         state["errors"].append(f"paper trading: {e}")
 
 
+def _history_lines() -> list[dict]:
+    """history.jsonl rows, skipping blank or half-written lines (e.g. from a crash mid-append)."""
+    rows = []
+    for line in HISTORY.read_text().splitlines():
+        try:
+            rows.append(json.loads(line))
+        except ValueError:
+            continue
+    return rows
+
+
 def _record_history(top):
     """Append today's top 5 once per day (for the track record)."""
     today = date.today().isoformat()
     seen = set()
     if HISTORY.exists():
-        for line in HISTORY.read_text().splitlines():
-            h = json.loads(line)
-            if h["date"] == today:
-                seen.add(h["ticker"])
+        for h in _history_lines():
+            if h.get("date") == today:
+                seen.add(h.get("ticker"))
     with HISTORY.open("a") as f:
         for r in top:
             if r["ticker"] in seen:
@@ -193,8 +224,10 @@ def scan(req: ScanReq | None = None):
     uni = load_settings()["universe"]
     if req and req.tickers:
         uni = {t.upper(): uni.get(t.upper(), "Custom") for t in req.tickers}
+    with lock:
+        busy = state["running"]
     threading.Thread(target=run_scan, args=(uni,), daemon=True).start()
-    return {"started": True, "total": len(uni)}
+    return {"started": not busy, "queued": busy, "total": len(uni)}
 
 
 @app.get("/api/status")
@@ -209,11 +242,23 @@ def results():
     return json.loads(LATEST.read_text())
 
 
+_details_loaded = {"done": False}
+
+
+def _load_details():
+    """Fill `details` from the last scan saved on disk, once per process (scans keep it current after that)."""
+    if _details_loaded["done"]:
+        return
+    _details_loaded["done"] = True
+    if (DATA / "details.json").exists():
+        for k, v in json.loads((DATA / "details.json").read_text()).items():
+            details.setdefault(k, v)
+
+
 @app.get("/api/ticker/{t}")
 def ticker(t: str):
     t = t.upper()
-    if t not in details and (DATA / "details.json").exists():
-        details.update(json.loads((DATA / "details.json").read_text()))
+    _load_details()
     if t not in details:
         raise HTTPException(404, "Ticker not in last scan")
     return details[t]
@@ -243,7 +288,7 @@ def history():
     """Past top-5 picks, marked against the latest stock price."""
     if not HISTORY.exists():
         return {"picks": [], "stats": {}}
-    picks = [json.loads(l) for l in HISTORY.read_text().splitlines() if l.strip()]
+    picks = _history_lines()
     tickers = sorted({p["ticker"] for p in picks})
     prices = {}
     try:
@@ -251,6 +296,7 @@ def history():
         data = yf.download(ysyms, period="5d", progress=False, auto_adjust=False)["Close"]
         last = data.ffill().iloc[-1]
         prices = {t: float(last[y]) if len(tickers) > 1 else float(last) for t, y in zip(tickers, ysyms)}
+        prices = {t: v for t, v in prices.items() if math.isfinite(v)}   # no data (e.g. delisted) → unknown, not NaN
     except Exception:
         pass
     wins = graded = 0
@@ -274,8 +320,8 @@ def history():
         if p["date"] != date.today().isoformat():
             graded += 1
             wins += good
-    return {"picks": picks[::-1], "stats": {"graded": graded, "on_track": wins,
-                                            "hit_rate": wins / graded if graded else None}}
+    return _clean({"picks": picks[::-1], "stats": {"graded": graded, "on_track": wins,
+                                                   "hit_rate": wins / graded if graded else None}})
 
 
 @app.get("/api/schwab/status")
@@ -445,8 +491,7 @@ def _chart_data(t: str, tf: str = "1d") -> dict:
     candles = [{"time": _chart_time(idx, tf), "iso": idx.isoformat(), "open": round(float(r.Open), 2),
                 "high": round(float(r.High), 2), "low": round(float(r.Low), 2), "close": round(float(r.Close), 2),
                 "volume": float(r.Volume)} for idx, r in hist.iterrows()]
-    if t not in details and (DATA / "details.json").exists():
-        details.update(json.loads((DATA / "details.json").read_text()))
+    _load_details()
     g = details.get(t, {}).get("gamma")
     zones = levels.find_zones(hist, stamp=lambda x: _stamp(x, tf))
     for z in zones["demand"] + zones["supply"]:
@@ -554,6 +599,20 @@ _kworker_lock = threading.Lock()   # one forecast at a time (the web server has 
 _user_waiting = {"n": 0}           # forecasts someone clicked for; background pre-compute steps aside for these
 
 
+KRONOS_START_TIMEOUT = 900   # first start may download the model
+KRONOS_CALL_TIMEOUT = 300
+
+
+def _read_line(p: subprocess.Popen, timeout: float) -> str:
+    """readline() that kills the process (so the read returns "") if no line arrives in time."""
+    timer = threading.Timer(timeout, p.kill)
+    timer.start()
+    try:
+        return p.stdout.readline()
+    finally:
+        timer.cancel()
+
+
 def _kronos_worker_call(req: dict) -> dict:
     """Send one forecast to the long-running Kronos process (started on first use, restarted if it dies)."""
     with _kworker_lock:
@@ -563,16 +622,21 @@ def _kronos_worker_call(req: dict) -> dict:
             p = subprocess.Popen([str(KRONOS_PY), str(ROOT / "radar" / "kronos_run.py"), "--serve"], env=env, text=True,
                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=1)
             _kworker["proc"] = p
-            if not p.stdout.readline():   # waits for {"ready": true} while torch + the model load
+            if not _read_line(p, KRONOS_START_TIMEOUT):   # waits for {"ready": true} while torch + the model load
+                p.kill()
                 _kworker["proc"] = None
                 raise HTTPException(500, "Kronos failed to start")
         p.stdin.write(json.dumps(req) + "\n")
         p.stdin.flush()
-        line = p.stdout.readline()
-        if not line:
+        line = _read_line(p, KRONOS_CALL_TIMEOUT)
+        try:
+            out = json.loads(line) if line else None
+        except ValueError:
+            out = None
+        if not isinstance(out, dict):   # died, timed out, or out of step: start a fresh worker next time
+            p.kill()
             _kworker["proc"] = None
             raise HTTPException(500, "Kronos stopped unexpectedly — try again")
-        out = json.loads(line)
         if "error" in out:
             raise HTTPException(500, "Kronos failed: " + out["error"])
         return out
@@ -648,7 +712,10 @@ def chat(req: ChatReq):
     ctx.insert(0, f"Market data source right now: {'Schwab (live)' if src == 'schwab' else 'Yahoo (delayed ~15 min)'}. Today is {date.today().isoformat()}.")
     # the open chart, plus up to 2 tickers named in the question (e.g. "predict TSLA")
     asked = req.messages[-1].get("content", "") if req.messages else ""
-    named = [w for w in re.findall(r"\$?\b([A-Za-z]{1,5})\b", asked) if w.upper() in _known_tickers() or (w.isupper() and len(w) > 1 and w not in NOT_TICKERS)]
+    known = _known_tickers()
+    named = [w for dollar, w in re.findall(r"(\$?)\b([A-Za-z]{1,5})\b", asked)
+             if (dollar and w.upper() in known) or w.upper() in FUTURES_WORDS
+             or (w.isupper() and w not in NOT_TICKERS and (w in known or len(w) > 1))]
     named = [FUTURES_WORDS.get(w.upper(), norm_ticker(w)) for w in named]
     req.ticker = norm_ticker(req.ticker) if req.ticker else None
     wanted = list(dict.fromkeys(([req.ticker] if req.ticker else []) + named))[:3]
@@ -908,8 +975,7 @@ def _precompute_one(t: str):
 def startup():
     if sys.platform.startswith("linux") and not KRONOS_PY.exists():
         threading.Thread(target=_install_kronos, daemon=True).start()
-    if (DATA / "details.json").exists():
-        details.update(json.loads((DATA / "details.json").read_text()))
+    _load_details()
     stale = not LATEST.exists() or time.time() - LATEST.stat().st_mtime > 3600
     if stale:
         threading.Thread(target=run_scan, args=(load_settings()["universe"],), daemon=True).start()
